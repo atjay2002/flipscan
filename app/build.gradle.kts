@@ -13,7 +13,9 @@ android {
         minSdk = 24
         targetSdk = 34
         versionCode = 1
-        versionName = "0.1.0"
+        versionName = "0.2.0"
+        // Skip x86 (32-bit) to keep the APK smaller; x86_64 is for emulators.
+        ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64") }
     }
 
     buildTypes {
@@ -46,4 +48,7 @@ dependencies {
     implementation("androidx.camera:camera-camera2:$camerax")
     implementation("androidx.camera:camera-lifecycle:$camerax")
     implementation("androidx.camera:camera-view:$camerax")
+
+    // OpenCV for Android (detection + perspective correction), from Maven Central
+    implementation("org.opencv:opencv:4.9.0")
 }

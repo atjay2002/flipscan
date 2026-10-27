@@ -7,7 +7,7 @@ Scan **both sides** of a card (Aadhaar, PAN, driving licence, voter ID, college 
 - Open source (MIT, added in milestone 8)
 
 ## Status
-Milestone 1 of 8: camera preview, capture button, permission handling.
+Milestone 2 of 8: OpenCV edge detection overlay, auto/manual capture, perspective crop.
 See [SPEC.md](SPEC.md) for the full plan.
 
 ## Build
