@@ -55,6 +55,8 @@ import androidx.core.content.ContextCompat
 import app.flipscan.data.CardLayout
 import app.flipscan.data.Downloads
 import app.flipscan.data.ExportSettings
+import app.flipscan.data.Filter
+import app.flipscan.data.Format
 import app.flipscan.data.Mode
 import app.flipscan.data.Paper
 import app.flipscan.data.Scan
@@ -110,7 +112,10 @@ private fun ResultContent(scan: Scan, onBack: () -> Unit) {
             }
             busy = null
             val msg = r.fold(
-                { "Saved to Downloads/FlipScan" + (it.note?.let { n -> "\n$n" } ?: "") },
+                {
+                    val kb = it.files.sumOf { f -> f.length() } / 1024
+                    "Saved ${it.files.size} file(s), $kb KB, to Downloads/FlipScan" + (it.note?.let { n -> "\n$n" } ?: "")
+                },
                 { "Export failed: ${it.message}" }
             )
             Toast.makeText(ctx, msg, Toast.LENGTH_LONG).show()
@@ -161,7 +166,7 @@ private fun ResultContent(scan: Scan, onBack: () -> Unit) {
             }
 
             Row(Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = ::onSave, modifier = Modifier.weight(1f), enabled = busy == null) { Text("Save to Downloads") }
+                Button(onClick = ::onSave, modifier = Modifier.weight(1f), enabled = busy == null) { Text("Save ${settings.format.label} to Downloads") }
             }
         }
         busy?.let { BusyOverlay(it, Modifier.fillMaxSize()) }
@@ -189,6 +194,12 @@ private fun SettingsControls(scan: Scan, s: ExportSettings, update: (ExportSetti
     }
     Text("Margin: ${s.marginMm.toInt()} mm")
     Slider(value = s.marginMm, onValueChange = { update(s.copy(marginMm = it)) }, valueRange = 0f..25f)
+
+    Choice("Filter", Filter.entries, s.filter, { it.label }) { update(s.copy(filter = it)) }
+    Choice("Format", Format.entries, s.format, { it.label }) { update(s.copy(format = it)) }
+    Choice("Size limit", listOf(0, 200, 500, 1000), s.targetKb, { if (it == 0) "No limit" else if (it >= 1000) "${it / 1000} MB" else "$it KB" }) {
+        update(s.copy(targetKb = it))
+    }
 }
 
 @Composable
