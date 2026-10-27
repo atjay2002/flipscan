@@ -10,6 +10,7 @@ import app.flipscan.data.Format
 import app.flipscan.data.Mode
 import app.flipscan.data.Scan
 import app.flipscan.data.ScanStore
+import app.flipscan.data.SettingsStore
 import java.io.ByteArrayOutputStream
 import java.io.File
 import kotlin.math.roundToInt
@@ -76,6 +77,19 @@ object Exporter {
 
     fun safeName(name: String): String =
         name.replace(Regex("[^A-Za-z0-9 ._-]"), "_").trim().ifEmpty { "scan" }
+
+    /** Small JPEG of the first sheet, shown in the recent scans list. */
+    fun writeThumb(ctx: Context, scan: Scan) {
+        val s = SettingsStore.load(ctx)
+        val (plan, files) = sheets(ctx, scan, s).firstOrNull() ?: return
+        val dpi = (360f / (plan.widthMm / 25.4f)).roundToInt().coerceAtLeast(10)
+        val bmp = renderBitmap(plan, files, dpi, s.filter)
+        try {
+            ScanStore.thumbFile(ctx, scan.id).outputStream().use { bmp.compress(Bitmap.CompressFormat.JPEG, 80, it) }
+        } finally {
+            bmp.recycle()
+        }
+    }
 
     private fun compress(bmp: Bitmap, format: Format, quality: Int): ByteArray {
         val out = ByteArrayOutputStream()

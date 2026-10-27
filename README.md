@@ -7,7 +7,7 @@ Scan **both sides** of a card (Aadhaar, PAN, driving licence, voter ID, college 
 - Open source (MIT, added in milestone 8)
 
 ## Status
-Milestone 6 of 8: filters (original, grayscale, B&W, magic color), PDF/JPG/PNG export, compress to target size.
+Milestone 7 of 8: recent scans list, share, rename, delete.
 See [SPEC.md](SPEC.md) for the full plan.
 
 ## Build

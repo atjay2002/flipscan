@@ -30,6 +30,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
@@ -63,6 +64,7 @@ import app.flipscan.data.Scan
 import app.flipscan.data.ScanStore
 import app.flipscan.data.SettingsStore
 import app.flipscan.export.Exporter
+import app.flipscan.export.Share
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -122,6 +124,16 @@ private fun ResultContent(scan: Scan, onBack: () -> Unit) {
         }
     }
 
+    fun share() {
+        scope.launch {
+            busy = "Preparing…"
+            val r = withContext(Dispatchers.IO) { runCatching { Exporter.render(ctx, scan, settings).files } }
+            busy = null
+            r.onSuccess { Share.send(ctx, it) }
+                .onFailure { Toast.makeText(ctx, "Could not share: ${it.message}", Toast.LENGTH_LONG).show() }
+        }
+    }
+
     val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { ok ->
         if (ok) export() else Toast.makeText(ctx, "Storage permission is needed to save to Downloads on this Android version", Toast.LENGTH_LONG).show()
     }
@@ -166,7 +178,8 @@ private fun ResultContent(scan: Scan, onBack: () -> Unit) {
             }
 
             Row(Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = ::onSave, modifier = Modifier.weight(1f), enabled = busy == null) { Text("Save ${settings.format.label} to Downloads") }
+                Button(onClick = ::onSave, modifier = Modifier.weight(1f), enabled = busy == null) { Text("Save to Downloads") }
+                OutlinedButton(onClick = ::share, modifier = Modifier.weight(1f), enabled = busy == null) { Text("Share") }
             }
         }
         busy?.let { BusyOverlay(it, Modifier.fillMaxSize()) }

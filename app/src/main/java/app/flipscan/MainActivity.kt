@@ -14,7 +14,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import app.flipscan.data.Mode
+import app.flipscan.data.Scan
 import app.flipscan.data.ScanStore
+import app.flipscan.export.Exporter
+import android.content.Context
 import app.flipscan.data.Work
 import app.flipscan.ui.DoubleSideScreen
 import app.flipscan.ui.HomeScreen
@@ -57,7 +60,8 @@ private fun App() {
     when (val s = screen) {
         Screen.Home -> HomeScreen(
             onDoubleSide = { Work.clear(ctx); screen = Screen.DoubleSide },
-            onRegular = { Work.clear(ctx); regularPages.clear(); screen = Screen.Regular }
+            onRegular = { Work.clear(ctx); regularPages.clear(); screen = Screen.Regular },
+            onOpen = { screen = Screen.Result(it.id) }
         )
         Screen.Regular -> RegularScreen(
             regularPages,
@@ -72,7 +76,7 @@ private fun App() {
                     saving = true
                     val files = regularPages.toList()
                     scope.launch {
-                        val scan = withContext(Dispatchers.IO) { ScanStore.create(ctx, Mode.DOCUMENT, files) }
+                        val scan = finishScan(ctx, Mode.DOCUMENT, files)
                         regularPages.clear()
                         saving = false
                         screen = Screen.Result(scan.id)
@@ -86,7 +90,7 @@ private fun App() {
                 if (!saving) {
                     saving = true
                     scope.launch {
-                        val scan = withContext(Dispatchers.IO) { ScanStore.create(ctx, Mode.CARDS, listOf(front, back)) }
+                        val scan = finishScan(ctx, Mode.CARDS, listOf(front, back))
                         saving = false
                         screen = Screen.Result(scan.id)
                     }
@@ -96,3 +100,11 @@ private fun App() {
         is Screen.Result -> ResultScreen(s.scanId, onBack = { screen = Screen.Home })
     }
 }
+
+/** Moves the working files into a new scan and makes its list thumbnail, off the main thread. */
+private suspend fun finishScan(ctx: Context, mode: Mode, files: List<File>): Scan =
+    withContext(Dispatchers.IO) {
+        val scan = ScanStore.create(ctx, mode, files)
+        runCatching { Exporter.writeThumb(ctx, scan) } // a missing thumbnail is not fatal
+        scan
+    }
