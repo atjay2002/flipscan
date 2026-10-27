@@ -79,6 +79,7 @@ private fun DoubleSideContent(onBack: () -> Unit, onDone: (File, File) -> Unit) 
     var busy by remember { mutableStateOf(false) }
     var auto by remember { mutableStateOf(true) }
     var confirmExit by remember { mutableStateOf(false) }
+    var shots by remember { mutableIntStateOf(0) }
 
     val hasAny = frontFile != null || backFile != null
     BackHandler { if (hasAny) confirmExit = true else onBack() }
@@ -105,6 +106,7 @@ private fun DoubleSideContent(onBack: () -> Unit, onDone: (File, File) -> Unit) 
                     } else {
                         backFile?.delete(); backFile = page; backThumb = thumb
                     }
+                    shots++
                     // Move on to the other side if it is still empty, otherwise we are done.
                     active = when {
                         slot == 0 && backFile == null -> 1
@@ -119,7 +121,7 @@ private fun DoubleSideContent(onBack: () -> Unit, onDone: (File, File) -> Unit) 
         }
     }
 
-    AutoCaptureEffect(cam, enabled = auto && !busy && active >= 0) { shoot() }
+    AutoCaptureEffect(cam, enabled = auto && !busy && active >= 0, shots = shots) { shoot() }
 
     Column(Modifier.fillMaxSize().background(Color(0xFF101418))) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {

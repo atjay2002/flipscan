@@ -184,16 +184,31 @@ private fun CornerOverlay(state: ScanCameraState, modifier: Modifier) {
     }
 }
 
-/** Fires [onTrigger] once the document has been detected and held still for about 1 second. */
+/**
+ * Fires [onTrigger] once the document has been detected and held still for about 1 second.
+ * [shots] = number of captures so far. After a capture it waits until the page was taken away
+ * or swapped, so the same page (or the same card side) is not captured twice.
+ */
 @Composable
-fun AutoCaptureEffect(state: ScanCameraState, enabled: Boolean, onTrigger: () -> Unit) {
+fun AutoCaptureEffect(state: ScanCameraState, enabled: Boolean, shots: Int, onTrigger: () -> Unit) {
     val trigger by rememberUpdatedState(onTrigger)
-    LaunchedEffect(state, enabled) {
+    LaunchedEffect(state, enabled, shots) {
         if (!enabled) return@LaunchedEffect
+        var waiting = shots > 0
+        var anchor: Quad? = null
         var last: Quad? = null
         var since = 0L
         snapshotFlow { state.live }.collect { r ->
             val q = r?.quad
+            if (waiting) {
+                if (q == null) {
+                    waiting = false
+                } else {
+                    val a = anchor
+                    if (a == null) anchor = q else if (q.maxShift(a) > 0.12) waiting = false
+                }
+                if (waiting) return@collect
+            }
             if (q == null) {
                 last = null
                 return@collect

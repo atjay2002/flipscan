@@ -7,7 +7,7 @@ Scan **both sides** of a card (Aadhaar, PAN, driving licence, voter ID, college 
 - Open source (MIT, added in milestone 8)
 
 ## Status
-Milestone 4 of 8: Double Side output merged onto one page (paper size, layout, margins, cut line, real size) and PDF export to Downloads.
+Milestone 5 of 8: Regular mode (multi-page capture, review, reorder, delete).
 See [SPEC.md](SPEC.md) for the full plan.
 
 ## Build

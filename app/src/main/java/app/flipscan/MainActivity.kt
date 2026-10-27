@@ -1,7 +1,6 @@
 package app.flipscan
 
 import android.os.Bundle
-import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.fillMaxSize
@@ -19,6 +18,10 @@ import app.flipscan.data.ScanStore
 import app.flipscan.data.Work
 import app.flipscan.ui.DoubleSideScreen
 import app.flipscan.ui.HomeScreen
+import app.flipscan.ui.PagesScreen
+import app.flipscan.ui.RegularScreen
+import androidx.compose.runtime.mutableStateListOf
+import java.io.File
 import app.flipscan.ui.ResultScreen
 import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -28,6 +31,8 @@ import kotlinx.coroutines.withContext
 sealed interface Screen {
     data object Home : Screen
     data object DoubleSide : Screen
+    data object Regular : Screen
+    data object Pages : Screen
     data class Result(val scanId: String) : Screen
 }
 
@@ -46,12 +51,34 @@ class MainActivity : ComponentActivity() {
 private fun App() {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
+    val regularPages = remember { mutableStateListOf<File>() }
     var saving by remember { mutableStateOf(false) }
     var screen by remember { mutableStateOf<Screen>(Screen.Home) }
     when (val s = screen) {
         Screen.Home -> HomeScreen(
             onDoubleSide = { Work.clear(ctx); screen = Screen.DoubleSide },
-            onRegular = { Toast.makeText(ctx, "Regular mode arrives in milestone 5", Toast.LENGTH_SHORT).show() }
+            onRegular = { Work.clear(ctx); regularPages.clear(); screen = Screen.Regular }
+        )
+        Screen.Regular -> RegularScreen(
+            regularPages,
+            onDone = { screen = Screen.Pages },
+            onBack = { screen = Screen.Home }
+        )
+        Screen.Pages -> PagesScreen(
+            regularPages,
+            onAddMore = { screen = Screen.Regular },
+            onSave = {
+                if (!saving && regularPages.isNotEmpty()) {
+                    saving = true
+                    val files = regularPages.toList()
+                    scope.launch {
+                        val scan = withContext(Dispatchers.IO) { ScanStore.create(ctx, Mode.DOCUMENT, files) }
+                        regularPages.clear()
+                        saving = false
+                        screen = Screen.Result(scan.id)
+                    }
+                }
+            }
         )
         Screen.DoubleSide -> DoubleSideScreen(
             onBack = { screen = Screen.Home },
