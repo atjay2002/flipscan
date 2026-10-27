@@ -49,3 +49,16 @@ fun BusyOverlay(text: String, modifier: Modifier = Modifier) {
         }
     }
 }
+
+/** Asks before throwing away unsaved scans. */
+@Composable
+fun DiscardDialog(show: Boolean, onConfirm: () -> Unit, onDismiss: () -> Unit) {
+    if (!show) return
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Discard this scan?") },
+        text = { Text("The photos you took so far will be deleted.") },
+        confirmButton = { androidx.compose.material3.TextButton(onClick = onConfirm) { Text("Discard") } },
+        dismissButton = { androidx.compose.material3.TextButton(onClick = onDismiss) { Text("Keep scanning") } }
+    )
+}
