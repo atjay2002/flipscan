@@ -3,6 +3,10 @@
 
     <!-- Camera only. FlipScan deliberately has NO INTERNET permission. -->
     <uses-permission android:name="android.permission.CAMERA" />
+    <!-- Only needed to save into Downloads on Android 7-9; newer versions use MediaStore without it. -->
+    <uses-permission
+        android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="28" />
     <uses-feature android:name="android.hardware.camera.any" android:required="true" />
 
     <application
