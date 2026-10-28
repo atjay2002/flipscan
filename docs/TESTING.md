@@ -7,11 +7,23 @@
 4. Auto-capture: hold a card still ~1 s. It must NOT capture the same side twice; flip the card first.
 5. Blur / glare hints appear (shiny laminated card under a lamp).
 6. Result: switch A4/A5/Letter/Custom, stacked/side by side, real size vs fit, margin, cut line. Print at 100% and measure the card: 85.6 x 54 mm.
-7. Filters, formats (PDF/JPG/PNG), size limits (200 KB / 500 KB). Check the toast when a limit cannot be reached.
-8. Save to Downloads (Downloads/FlipScan), Share to WhatsApp/Gmail.
+7. Filters, formats (PDF/JPG/PNG), size limits (200 KB / 500 KB). Check the banner when a limit cannot be reached.
+8. Save to Downloads (Downloads/FlipScan), Share to WhatsApp/Gmail. The success banner must appear only after the copy finishes.
 9. Regular mode: capture 3+ pages, reorder, delete one, add another, Continue, export.
 10. Home: rename, delete, share from the recent list.
 11. Android 7-9 only: saving asks for storage permission.
+12. Theme: switch the system to dark mode. Every screen must stay readable (camera screens are intentionally always dark).
+
+## Flash / torch
+- Double Side and Document screens: flash button in the top bar, next to the title.
+- Tap it: the LED turns on continuously (torch, not a still-photo flash) and the button turns amber with a bolt icon.
+- Tap again: the LED turns off and the button returns to its dim state.
+- Capture with the torch on and off; the photo must look the same otherwise (no exposure/focus change in the app).
+- Leave the camera screen while the torch is on: the LED must go off. Reopen the camera: the button must show the real state (off), with no stale amber state or crash.
+- Rotate/lock the phone, take a call, or send the app to the background with the torch on; returning must not leave the LED stuck on.
+- On a camera without a flash unit: the button is dimmed and tapping explains that the camera has no flash.
+- On the ID card screen, once both sides are captured the preview (and the camera) is released, so the
+  flash button disappears; tapping a card to retake brings it back with the real torch state.
 
 ## Tunable values (detection)
 - `Thresholds.BLUR_MIN`, `Thresholds.GLARE_MAX` in `scan/Detector.kt`
@@ -29,3 +41,18 @@
 - Result screen: tap Crop on Front, drag the corners (green corner = top-left of the result), Apply. Page and preview update.
 - Rotate (↻) a card: it should become an upright card on the sheet, not stretched.
 - Scans made before this version have no stored original: Crop shows a message there; rotate still works.
+- Result screen: Save shows the "Saved to Downloads/FlipScan" banner and returns to the Home dashboard
+  after ~1.2 s; Share opens the system sheet and returns Home ~0.9 s later. A failure keeps you on the
+  page with the error banner so you can retry.
+
+## Motion and layout
+- Screen changes: short slide + fade, no black flash, no stutter on the camera preview.
+- Settings > Accessibility > Remove animations (or Developer options > Animator duration scale = off): screen changes, the home entrance, thumbnail fades and the shutter press become instant; nothing disappears.
+- Crop: dragging corners must track the finger with no lag (no animation is used there on purpose).
+- Narrow/small phone: the result screen still scrolls, the bottom bar does not cover the last settings row.
+
+## Release build (R8) smoke test
+This is the build that is distributed; install it once before publishing:
+- `bash gradlew assembleRelease` and install `app/build/outputs/apk/release/app-release-unsigned.apk` after signing.
+- Open the camera, toggle the torch, capture a card both ways, crop with OpenCV perspective correction, rotate, save PDF/JPG/PNG, and share.
+- If anything fails only in release, the first suspect is a missing keep rule in `app/proguard-rules.pro` (OpenCV JNI, CameraX runtime classes).

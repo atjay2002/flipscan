@@ -3,11 +3,14 @@ package app.flipscan.scan
 import android.content.Context
 import android.os.SystemClock
 import android.util.Size
+import androidx.camera.core.Camera
 import androidx.camera.core.CameraSelector
+import androidx.camera.core.CameraState
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCaptureException
 import androidx.camera.core.Preview
+import androidx.camera.core.TorchState
 import androidx.camera.core.resolutionselector.ResolutionSelector
 import androidx.camera.core.resolutionselector.ResolutionStrategy
 import androidx.camera.lifecycle.ProcessCameraProvider
@@ -46,6 +49,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.Observer
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import java.io.File
 import java.util.concurrent.ExecutorService
@@ -68,7 +72,51 @@ class ScanCameraState(context: Context, val cardMode: Boolean) {
     var steady by mutableFloatStateOf(0f)
         private set
 
+    /**
+     * Torch support of the bound camera: null = camera not bound yet, true/false = known.
+     * The UI reads this to disable or hide the flash control instead of guessing.
+     */
+    var flashAvailable by mutableStateOf<Boolean?>(null)
+        private set
+
+    /** Mirrors the camera's real torch state (updated by CameraX, not by the last tap). */
+    var torchOn by mutableStateOf(false)
+        private set
+
+    private var boundCamera: Camera? = null
+    private val torchObserver = Observer<Int> { state -> torchOn = state == TorchState.ON }
+    // If the camera is closed (another app grabbed it, screen turned off, ...) the torch is off too;
+    // mirror that so the button never shows a stale "on" state.
+    private val cameraStateObserver = Observer<CameraState> { s ->
+        if (s.type == CameraState.Type.CLOSED || s.type == CameraState.Type.PENDING_OPEN) torchOn = false
+    }
+
     fun updateSteady(v: Float) { steady = v }
+
+    /** Called right after CameraX binds the use cases (main thread). */
+    fun attachCamera(camera: Camera) {
+        detachCamera()
+        boundCamera = camera
+        flashAvailable = camera.cameraInfo.hasFlashUnit()
+        camera.cameraInfo.torchState.observeForever(torchObserver)
+        camera.cameraInfo.cameraState.observeForever(cameraStateObserver)
+        torchOn = camera.cameraInfo.torchState.value == TorchState.ON
+    }
+
+    fun detachCamera() {
+        boundCamera?.cameraInfo?.torchState?.removeObserver(torchObserver)
+        boundCamera?.cameraInfo?.cameraState?.removeObserver(cameraStateObserver)
+        boundCamera = null
+        torchOn = false
+        flashAvailable = null
+    }
+
+    /** Continuous torch (not still-photo flash), matching how CameraX preview illumination works. */
+    fun setTorch(on: Boolean) {
+        val camera = boundCamera ?: return
+        if (!camera.cameraInfo.hasFlashUnit()) return
+        camera.cameraControl.enableTorch(on)
+    }
 
     private val mainExecutor = ContextCompat.getMainExecutor(context)
     private val analysisExecutor: ExecutorService = Executors.newSingleThreadExecutor()
@@ -119,6 +167,7 @@ class ScanCameraState(context: Context, val cardMode: Boolean) {
     fun clearLive() { live = null }
 
     fun close() {
+        detachCamera()
         analysis.clearAnalyzer()
         analysisExecutor.shutdown()
     }
@@ -157,17 +206,23 @@ fun ScanCameraView(
 
     DisposableEffect(owner, active) {
         val future = ProcessCameraProvider.getInstance(context)
+        var disposed = false
         if (active) {
             future.addListener({
+                // The screen may have been left before the provider finished starting.
+                if (disposed) return@addListener
                 val provider = future.get()
                 val preview = Preview.Builder().build().also { it.setSurfaceProvider(previewView.surfaceProvider) }
                 provider.unbindAll()
-                provider.bindToLifecycle(
+                val camera = provider.bindToLifecycle(
                     owner, CameraSelector.DEFAULT_BACK_CAMERA, preview, state.imageCapture, state.analysis
                 )
+                state.attachCamera(camera)
             }, ContextCompat.getMainExecutor(context))
         }
         onDispose {
+            disposed = true
+            state.detachCamera()
             if (active && future.isDone) future.get().unbindAll()
             state.clearLive()
         }

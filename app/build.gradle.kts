@@ -12,15 +12,25 @@ android {
         applicationId = "app.flipscan"
         minSdk = 24
         targetSdk = 34
-        versionCode = 1
-        versionName = "0.2.0"
-        // Skip x86 (32-bit) to keep the APK smaller; x86_64 is for emulators.
-        ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64") }
+        versionCode = 3
+        versionName = "0.3.0"
     }
 
     buildTypes {
+        debug {
+            // Keep x86_64 in debug so the app still runs in Android Studio's emulator.
+            ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64") }
+        }
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
+            // Real phones are ARM; x86_64 builds are only useful for emulators.
+            // The App Bundle still ships only what each device needs.
+            ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }
         }
     }
     compileOptions {
@@ -29,6 +39,23 @@ android {
     }
     kotlinOptions { jvmTarget = "17" }
     buildFeatures { compose = true }
+
+    packaging {
+        resources.excludes += setOf(
+            "DebugProbesKt.bin",
+            "META-INF/*.version"
+        )
+    }
+
+    dependenciesInfo {
+        // Removes the dependency metadata blob from the APK/AAB; nothing reads it at runtime.
+        includeInApk = false
+        includeInBundle = false
+    }
+
+    bundle {
+        abi { enableSplit = true }
+    }
 }
 
 dependencies {

@@ -1,38 +1,60 @@
 package app.flipscan.ui
 
 import android.Manifest
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.os.Build
-import android.content.pm.PackageManager
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -47,11 +69,13 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import app.flipscan.data.CardLayout
@@ -60,8 +84,8 @@ import app.flipscan.data.ExportSettings
 import app.flipscan.data.Filter
 import app.flipscan.data.Format
 import app.flipscan.data.Mode
-import app.flipscan.data.PageEditor
 import app.flipscan.data.Orientation
+import app.flipscan.data.PageEditor
 import app.flipscan.data.Paper
 import app.flipscan.data.Scan
 import app.flipscan.data.ScanStore
@@ -73,6 +97,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+private data class ExportFeedback(val ok: Boolean, val title: String, val body: String)
+
 @Composable
 fun ResultScreen(scanId: String, onBack: () -> Unit) {
     val ctx = LocalContext.current
@@ -80,7 +106,9 @@ fun ResultScreen(scanId: String, onBack: () -> Unit) {
     BackHandler(onBack = onBack)
     val s = scan
     if (s == null) {
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+        Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator()
+        }
     } else {
         ResultContent(s, onBack)
     }
@@ -94,11 +122,22 @@ private fun ResultContent(scan: Scan, onBack: () -> Unit) {
     var previews by remember { mutableStateOf<List<Bitmap>>(emptyList()) }
     var busy by remember { mutableStateOf<String?>(null) }
     var cropIndex by remember { mutableStateOf<Int?>(null) }
-    var rev by remember { mutableIntStateOf(0) } // bumps after a rotation to rebuild the preview
+    var rev by remember { mutableIntStateOf(0) } // bumps after an edit to rebuild the preview
+    var feedback by remember { mutableStateOf<ExportFeedback?>(null) }
+    var leaving by remember { mutableStateOf(false) }
 
     fun update(n: ExportSettings) {
         settings = n
         SettingsStore.save(ctx, n)
+    }
+
+    /** After a successful save/share, show the confirmation for a moment and go back to Home. */
+    fun leaveAfter(delayMs: Long) {
+        leaving = true
+        scope.launch {
+            delay(delayMs)
+            onBack()
+        }
     }
 
     // Preview is rebuilt in the background whenever a setting changes (small bitmaps only).
@@ -110,37 +149,56 @@ private fun ResultContent(scan: Scan, onBack: () -> Unit) {
     fun export() {
         scope.launch {
             busy = "Creating file…"
+            feedback = null
             val r = withContext(Dispatchers.IO) {
                 runCatching {
                     val res = Exporter.render(ctx, scan, settings)
-                    Downloads.save(ctx, res.files)
+                    Downloads.save(ctx, res.files) // reports success only after the copy finishes
                     res
                 }
             }
             busy = null
-            val msg = r.fold(
-                {
-                    val kb = it.files.sumOf { f -> f.length() } / 1024
-                    "Saved ${it.files.size} file(s), $kb KB, to Downloads/FlipScan" + (it.note?.let { n -> "\n$n" } ?: "")
+            feedback = r.fold(
+                { res ->
+                    val kb = res.files.sumOf { f -> f.length() } / 1024
+                    ExportFeedback(
+                        ok = true,
+                        title = "Saved to Downloads/FlipScan",
+                        body = "${res.files.size} file(s) · $kb KB" + (res.note?.let { "\n$it" } ?: "")
+                    )
                 },
-                { "Export failed: ${it.message}" }
+                { err -> ExportFeedback(false, "Export failed", err.message ?: "Unknown error") }
             )
-            Toast.makeText(ctx, msg, Toast.LENGTH_LONG).show()
+            if (r.isSuccess) leaveAfter(1200)
         }
     }
 
     fun share() {
         scope.launch {
             busy = "Preparing…"
+            feedback = null
             val r = withContext(Dispatchers.IO) { runCatching { Exporter.render(ctx, scan, settings).files } }
             busy = null
-            r.onSuccess { Share.send(ctx, it) }
-                .onFailure { Toast.makeText(ctx, "Could not share: ${it.message}", Toast.LENGTH_LONG).show() }
+            r.onSuccess { files ->
+                val sent = runCatching { Share.send(ctx, files) }
+                feedback = if (sent.isSuccess) {
+                    ExportFeedback(true, "Ready to share", "${files.size} file(s) generated on this device")
+                } else {
+                    ExportFeedback(false, "Could not share", sent.exceptionOrNull()?.message ?: "No app can receive this file")
+                }
+                if (sent.isSuccess) leaveAfter(900)
+            }.onFailure {
+                feedback = ExportFeedback(false, "Could not share", it.message ?: "Unknown error")
+            }
         }
     }
 
     val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { ok ->
-        if (ok) export() else Toast.makeText(ctx, "Storage permission is needed to save to Downloads on this Android version", Toast.LENGTH_LONG).show()
+        if (ok) {
+            export()
+        } else {
+            feedback = ExportFeedback(false, "Storage permission needed", "Allow storage access to save into Downloads on this Android version.")
+        }
     }
 
     fun onSave() {
@@ -149,69 +207,88 @@ private fun ResultContent(scan: Scan, onBack: () -> Unit) {
         if (needsPermission) permission.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE) else export()
     }
 
-    Box(Modifier.fillMaxSize()) {
+    Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         Column(Modifier.fillMaxSize()) {
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 8.dp)) {
-                TextButton(onClick = onBack) { Text("← Back") }
-                Text(scan.name, style = MaterialTheme.typography.titleMedium, maxLines = 1)
-            }
+            ScreenHeader(
+                title = scan.name,
+                subtitle = (if (scan.mode == Mode.CARDS) "ID card" else "Document") + " · ${scan.pages.size} page(s)",
+                onBack = onBack
+            )
 
-            Box(Modifier.fillMaxWidth().height(250.dp).background(Color(0xFFE9ECEF)), contentAlignment = Alignment.Center) {
-                if (previews.isEmpty()) {
-                    CircularProgressIndicator()
-                } else {
-                    LazyRow(
-                        Modifier.fillMaxSize(),
-                        contentPadding = androidx.compose.foundation.layout.PaddingValues(12.dp),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        items(previews.size) { i ->
-                            val bmp = previews[i]
-                            val image = remember(bmp) { bmp.asImageBitmap() }
-                            Image(
-                                image, contentDescription = "Page ${i + 1}", contentScale = ContentScale.Fit,
-                                modifier = Modifier.fillMaxHeight().aspectRatio(bmp.width / bmp.height.toFloat())
-                                    .border(1.dp, Color(0xFFB0B7BE))
-                            )
+            PreviewStrip(scan, previews, Modifier.padding(horizontal = 16.dp))
+
+            PageTools(
+                scan = scan,
+                enabled = busy == null && !leaving,
+                onRotate = { i ->
+                    scope.launch {
+                        busy = "Rotating…"
+                        withContext(Dispatchers.IO) {
+                            PageEditor.rotate(ctx, scan, i)
+                            runCatching { Exporter.writeThumb(ctx, scan) }
                         }
+                        busy = null
+                        rev++
                     }
-                }
-            }
+                },
+                onCrop = { cropIndex = it }
+            )
 
-            // Per-page tools: rotate 90° and manual crop.
-            Row(
-                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalAlignment = Alignment.CenterVertically
+            Column(
+                Modifier.weight(1f).verticalScroll(rememberScrollState())
+                    .padding(start = 16.dp, end = 16.dp, top = 6.dp, bottom = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                scan.pages.indices.forEach { i ->
-                    val name = if (scan.mode == Mode.CARDS) (if (i == 0) "Front" else "Back") else "Page ${i + 1}"
-                    Text(name, style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(start = 6.dp))
-                    OutlinedButton(onClick = {
-                        scope.launch {
-                            busy = "Rotating…"
-                            withContext(Dispatchers.IO) {
-                                PageEditor.rotate(ctx, scan, i)
-                                runCatching { Exporter.writeThumb(ctx, scan) }
-                            }
-                            busy = null
-                            rev++
-                        }
-                    }) { Text("↻") }
-                    OutlinedButton(onClick = { cropIndex = i }) { Text("Crop") }
+                PaperPanel(scan, settings, ::update)
+                OutputPanel(settings, ::update)
+            }
+
+            AnimatedVisibility(
+                visible = feedback != null,
+                enter = fadeIn(tween(motionMs(160))) + expandVertically(tween(motionMs(200))),
+                exit = fadeOut(tween(motionMs(120))) + shrinkVertically(tween(motionMs(160)))
+            ) {
+                feedback?.let { f ->
+                    ExportBanner(
+                        feedback = f,
+                        onDismiss = { feedback = null },
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                    )
                 }
             }
 
-            Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                SettingsControls(scan, settings, ::update)
-            }
-
-            Row(Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = ::onSave, modifier = Modifier.weight(1f), enabled = busy == null) { Text("Save to Downloads") }
-                OutlinedButton(onClick = ::share, modifier = Modifier.weight(1f), enabled = busy == null) { Text("Share") }
+            BottomActionBar {
+                Button(
+                    onClick = ::onSave,
+                    modifier = Modifier.weight(1f),
+                    enabled = busy == null && !leaving,
+                    shape = MaterialTheme.shapes.small
+                ) {
+                    DownloadIcon(Modifier.size(17.dp), MaterialTheme.colorScheme.onPrimary)
+                    Spacer(Modifier.width(7.dp))
+                    Text("Save")
+                }
+                OutlinedButton(
+                    onClick = ::share,
+                    modifier = Modifier.weight(1f),
+                    enabled = busy == null && !leaving,
+                    shape = MaterialTheme.shapes.small
+                ) {
+                    Icon(Icons.Filled.Share, contentDescription = null, modifier = Modifier.size(17.dp))
+                    Spacer(Modifier.width(7.dp))
+                    Text("Share")
+                }
             }
         }
-        busy?.let { BusyOverlay(it, Modifier.fillMaxSize()) }
+
+        AnimatedVisibility(
+            visible = busy != null,
+            enter = fadeIn(tween(motionMs(140))),
+            modifier = Modifier.fillMaxSize()
+        ) {
+            BusyOverlay(busy ?: "", Modifier.fillMaxSize())
+        }
+
         cropIndex?.let { i ->
             CropScreen(scan, i) { changed ->
                 cropIndex = null
@@ -222,42 +299,250 @@ private fun ResultContent(scan: Scan, onBack: () -> Unit) {
 }
 
 @Composable
-private fun SettingsControls(scan: Scan, s: ExportSettings, update: (ExportSettings) -> Unit) {
-    Choice("Paper size", Paper.entries, s.paper, { it.label }) { update(s.copy(paper = it)) }
-    Choice("Page orientation", Orientation.entries, s.orientation, { it.label }) { update(s.copy(orientation = it)) }
-    if (s.paper == Paper.CUSTOM) {
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            MmField("Width (mm)", s.customW, Modifier.weight(1f)) { update(s.copy(customW = it)) }
-            MmField("Height (mm)", s.customH, Modifier.weight(1f)) { update(s.copy(customH = it)) }
+private fun PreviewStrip(scan: Scan, previews: List<Bitmap>, modifier: Modifier = Modifier) {
+    Surface(
+        modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.large,
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+    ) {
+        Box(Modifier.fillMaxWidth().height(236.dp), contentAlignment = Alignment.Center) {
+            if (previews.isEmpty()) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    CircularProgressIndicator(Modifier.size(26.dp), strokeWidth = 2.5.dp)
+                    Text(
+                        "Building preview…",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 10.dp)
+                    )
+                }
+            } else {
+                LazyRow(
+                    Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    items(previews.size, key = { it }) { i ->
+                        val bmp = previews[i]
+                        val image = remember(bmp) { bmp.asImageBitmap() }
+                        Box(contentAlignment = Alignment.TopStart) {
+                            Image(
+                                image,
+                                contentDescription = "Page ${i + 1} preview",
+                                contentScale = ContentScale.Fit,
+                                modifier = Modifier
+                                    .fillMaxHeight()
+                                    .aspectRatio(bmp.width / bmp.height.toFloat())
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f), RoundedCornerShape(10.dp))
+                            )
+                            Text(
+                                if (scan.mode == Mode.CARDS) (if (i == 0) "FRONT" else "BACK") else "PAGE ${i + 1}",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onPrimary,
+                                modifier = Modifier
+                                    .padding(8.dp)
+                                    .clip(RoundedCornerShape(5.dp))
+                                    .background(MaterialTheme.colorScheme.primary)
+                                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
+                }
+            }
         }
-    }
-    if (scan.mode == Mode.CARDS) {
-        Choice("Layout", CardLayout.entries, s.layout, { it.label }) { update(s.copy(layout = it)) }
-        Choice("Card size", listOf(true, false), s.realSize, { if (it) "Real size (85.6 × 54 mm)" else "Fit to page" }) {
-            update(s.copy(realSize = it))
-        }
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("Cut line", Modifier.weight(1f))
-            Switch(checked = s.cutLine, onCheckedChange = { update(s.copy(cutLine = it)) })
-        }
-    }
-    Text("Margin: ${s.marginMm.toInt()} mm")
-    Slider(value = s.marginMm, onValueChange = { update(s.copy(marginMm = it)) }, valueRange = 0f..25f)
-
-    Choice("Filter", Filter.entries, s.filter, { it.label }) { update(s.copy(filter = it)) }
-    Choice("Format", Format.entries, s.format, { it.label }) { update(s.copy(format = it)) }
-    Choice("Size limit", listOf(0, 200, 500, 1000), s.targetKb, { if (it == 0) "No limit" else if (it >= 1000) "${it / 1000} MB" else "$it KB" }) {
-        update(s.copy(targetKb = it))
     }
 }
 
 @Composable
-fun <T> Choice(title: String, options: List<T>, selected: T, label: (T) -> String, onSelect: (T) -> Unit) {
-    Column {
-        Text(title, style = MaterialTheme.typography.labelLarge)
-        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            options.forEach { o ->
-                FilterChip(selected = o == selected, onClick = { onSelect(o) }, label = { Text(label(o)) })
+private fun PageTools(scan: Scan, enabled: Boolean, onRotate: (Int) -> Unit, onCrop: (Int) -> Unit) {
+    Row(
+        Modifier.fillMaxWidth()
+            .horizontalScroll(rememberScrollState())
+            .padding(horizontal = 16.dp, vertical = 10.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        scan.pages.indices.forEach { i ->
+            val name = if (scan.mode == Mode.CARDS) (if (i == 0) "Front" else "Back") else "Page ${i + 1}"
+            Surface(
+                shape = RoundedCornerShape(50),
+                color = MaterialTheme.colorScheme.surface,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+            ) {
+                Row(Modifier.padding(start = 12.dp, end = 2.dp, top = 2.dp, bottom = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text(name, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    IconButton(onClick = { onRotate(i) }, enabled = enabled, modifier = Modifier.size(38.dp)) {
+                        RotateIcon(Modifier.size(18.dp), MaterialTheme.colorScheme.onSurface, label = "Rotate $name")
+                    }
+                    IconButton(onClick = { onCrop(i) }, enabled = enabled, modifier = Modifier.size(38.dp)) {
+                        CropIcon(Modifier.size(18.dp), MaterialTheme.colorScheme.onSurface, label = "Crop $name")
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PaperPanel(scan: Scan, s: ExportSettings, update: (ExportSettings) -> Unit) {
+    Panel {
+        SectionLabel("Paper size")
+        Row(
+            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Paper.entries.forEach { p ->
+                ChoiceChip(selected = s.paper == p, label = p.label) { update(s.copy(paper = p)) }
+            }
+        }
+        if (s.paper == Paper.CUSTOM) {
+            Row(Modifier.padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                MmField("Width (mm)", s.customW, Modifier.weight(1f)) { update(s.copy(customW = it)) }
+                MmField("Height (mm)", s.customH, Modifier.weight(1f)) { update(s.copy(customH = it)) }
+            }
+        }
+        Spacer(Modifier.height(14.dp))
+        SectionLabel("Orientation")
+        Row(
+            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Orientation.entries.forEach { o ->
+                ChoiceChip(selected = s.orientation == o, label = o.label) { update(s.copy(orientation = o)) }
+            }
+        }
+        if (scan.mode == Mode.CARDS) {
+            Spacer(Modifier.height(14.dp))
+            SectionLabel("Card layout")
+            Row(
+                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                CardLayout.entries.forEach { l ->
+                    ChoiceChip(selected = s.layout == l, label = l.label) { update(s.copy(layout = l)) }
+                }
+            }
+            Spacer(Modifier.height(14.dp))
+            SectionLabel("Card size")
+            Row(
+                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                ChoiceChip(selected = s.realSize, label = "Real size (85.6 × 54 mm)") { update(s.copy(realSize = true)) }
+                ChoiceChip(selected = !s.realSize, label = "Fit to page") { update(s.copy(realSize = false)) }
+            }
+            Row(
+                Modifier.fillMaxWidth().padding(top = 12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text("Cut line", style = MaterialTheme.typography.titleSmall)
+                    Text(
+                        "Thin guide around each card",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Switch(checked = s.cutLine, onCheckedChange = { update(s.copy(cutLine = it)) })
+            }
+        }
+        Spacer(Modifier.height(14.dp))
+        SectionLabel("Margin")
+        MarginSlider(s, update)
+    }
+}
+
+@Composable
+private fun OutputPanel(s: ExportSettings, update: (ExportSettings) -> Unit) {
+    Panel {
+        SectionLabel("Filter")
+        Row(
+            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Filter.entries.forEach { f ->
+                ChoiceChip(selected = s.filter == f, label = f.label) { update(s.copy(filter = f)) }
+            }
+        }
+        Spacer(Modifier.height(14.dp))
+        SectionLabel("File format")
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Format.entries.forEach { f ->
+                ChoiceChip(selected = s.format == f, label = f.label) { update(s.copy(format = f)) }
+            }
+        }
+        Spacer(Modifier.height(14.dp))
+        SectionLabel("Size limit")
+        Row(
+            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            listOf(0, 200, 500, 1000).forEach { kb ->
+                ChoiceChip(selected = s.targetKb == kb, label = if (kb == 0) "No limit" else if (kb >= 1000) "${kb / 1000} MB" else "$kb KB") {
+                    update(s.copy(targetKb = kb))
+                }
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+        Text(
+            if (s.targetKb == 0) "Full resolution." else "Resolution and JPEG quality are reduced only as much as needed to fit.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
+@Composable
+private fun MarginSlider(s: ExportSettings, update: (ExportSettings) -> Unit) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Text("Margin", style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
+        Text(
+            "${s.marginMm.toInt()} mm",
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+    Slider(
+        value = s.marginMm,
+        onValueChange = { update(s.copy(marginMm = it)) },
+        valueRange = 0f..25f,
+        steps = 24
+    )
+}
+
+@Composable
+private fun ExportBanner(feedback: ExportFeedback, onDismiss: () -> Unit, modifier: Modifier = Modifier) {
+    // Green readable on both themes (the Material palette has no "success" role).
+    val accent = if (feedback.ok) {
+        if (isSystemInDarkTheme()) Color(0xFF4ADE80) else Color(0xFF15803D)
+    } else {
+        MaterialTheme.colorScheme.error
+    }
+    Surface(
+        modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.medium,
+        color = accent.copy(alpha = 0.10f),
+        border = BorderStroke(1.dp, accent.copy(alpha = 0.35f))
+    ) {
+        Row(Modifier.padding(start = 12.dp, end = 4.dp, top = 8.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                if (feedback.ok) Icons.Filled.CheckCircle else Icons.Filled.Warning,
+                contentDescription = null,
+                tint = accent,
+                modifier = Modifier.size(20.dp)
+            )
+            Column(Modifier.weight(1f).padding(horizontal = 10.dp)) {
+                Text(feedback.title, style = MaterialTheme.typography.titleSmall, color = accent)
+                Text(
+                    feedback.body,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            IconButton(onClick = onDismiss) {
+                Icon(Icons.Filled.Close, contentDescription = "Dismiss", tint = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     }

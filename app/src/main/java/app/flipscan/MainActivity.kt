@@ -5,11 +5,16 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -25,12 +30,14 @@ import app.flipscan.data.Scan
 import app.flipscan.data.ScanStore
 import app.flipscan.data.Work
 import app.flipscan.export.Exporter
+import app.flipscan.ui.BusyOverlay
 import app.flipscan.ui.DoubleSideScreen
 import app.flipscan.ui.FlipScanTheme
 import app.flipscan.ui.HomeScreen
 import app.flipscan.ui.PagesScreen
 import app.flipscan.ui.RegularScreen
 import app.flipscan.ui.ResultScreen
+import app.flipscan.ui.motionMs
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -49,7 +56,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             FlipScanTheme {
-                Surface(Modifier.fillMaxSize(), color = androidx.compose.material3.MaterialTheme.colorScheme.background) { App() }
+                Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) { App() }
             }
         }
     }
@@ -62,54 +69,72 @@ private fun App() {
     val regularPages = remember { mutableStateListOf<File>() }
     var saving by remember { mutableStateOf(false) }
     var screen by remember { mutableStateOf<Screen>(Screen.Home) }
+    val fadeInMs = motionMs(220)
+    val fadeOutMs = motionMs(150)
+    val slideMs = motionMs(280)
 
-    // Screens cross-fade (alpha only, cheap).
-    AnimatedContent(
-        targetState = screen,
-        transitionSpec = { fadeIn(tween(260)) togetherWith fadeOut(tween(160)) },
-        label = "screens"
-    ) { current ->
-        when (current) {
-            Screen.Home -> HomeScreen(
-                onDoubleSide = { Work.clear(ctx); screen = Screen.DoubleSide },
-                onRegular = { Work.clear(ctx); regularPages.clear(); screen = Screen.Regular },
-                onOpen = { screen = Screen.Result(it.id) }
-            )
-            Screen.DoubleSide -> DoubleSideScreen(
-                onBack = { screen = Screen.Home },
-                onDone = { front, back ->
-                    if (!saving) {
-                        saving = true
-                        scope.launch {
-                            val scan = finishScan(ctx, Mode.CARDS, listOf(front, back))
-                            saving = false
-                            screen = Screen.Result(scan.id)
+    Box(Modifier.fillMaxSize()) {
+        // Screens cross-fade and nudge horizontally in the direction of travel.
+        AnimatedContent(
+            targetState = screen,
+            transitionSpec = {
+                val dir = if (depth(targetState) >= depth(initialState)) 1 else -1
+                (fadeIn(tween(fadeInMs)) + slideInHorizontally(tween(slideMs)) { it / 16 * dir }) togetherWith
+                    (fadeOut(tween(fadeOutMs)) + slideOutHorizontally(tween(slideMs)) { -it / 16 * dir })
+            },
+            label = "screens"
+        ) { current ->
+            when (current) {
+                Screen.Home -> HomeScreen(
+                    onDoubleSide = { Work.clear(ctx); screen = Screen.DoubleSide },
+                    onRegular = { Work.clear(ctx); regularPages.clear(); screen = Screen.Regular },
+                    onOpen = { screen = Screen.Result(it.id) }
+                )
+                Screen.DoubleSide -> DoubleSideScreen(
+                    onBack = { screen = Screen.Home },
+                    onDone = { front, back ->
+                        if (!saving) {
+                            saving = true
+                            scope.launch {
+                                val scan = finishScan(ctx, Mode.CARDS, listOf(front, back))
+                                saving = false
+                                screen = Screen.Result(scan.id)
+                            }
                         }
                     }
-                }
-            )
-            Screen.Regular -> RegularScreen(
-                regularPages,
-                onDone = { screen = Screen.Pages },
-                onBack = { screen = Screen.Home }
-            )
-            Screen.Pages -> PagesScreen(
-                regularPages,
-                onAddMore = { screen = Screen.Regular },
-                onSave = {
-                    if (!saving && regularPages.isNotEmpty()) {
-                        saving = true
-                        val files = regularPages.toList()
-                        scope.launch {
-                            val scan = finishScan(ctx, Mode.DOCUMENT, files)
-                            regularPages.clear()
-                            saving = false
-                            screen = Screen.Result(scan.id)
+                )
+                Screen.Regular -> RegularScreen(
+                    regularPages,
+                    onDone = { screen = Screen.Pages },
+                    onBack = { screen = Screen.Home }
+                )
+                Screen.Pages -> PagesScreen(
+                    regularPages,
+                    onAddMore = { screen = Screen.Regular },
+                    onSave = {
+                        if (!saving && regularPages.isNotEmpty()) {
+                            saving = true
+                            val files = regularPages.toList()
+                            scope.launch {
+                                val scan = finishScan(ctx, Mode.DOCUMENT, files)
+                                regularPages.clear()
+                                saving = false
+                                screen = Screen.Result(scan.id)
+                            }
                         }
                     }
-                }
-            )
-            is Screen.Result -> ResultScreen(current.scanId, onBack = { screen = Screen.Home })
+                )
+                is Screen.Result -> ResultScreen(current.scanId, onBack = { screen = Screen.Home })
+            }
+        }
+
+        // Moving pages into a saved scan takes a moment; keep taps out while it happens.
+        AnimatedVisibility(
+            visible = saving,
+            enter = fadeIn(tween(fadeInMs)),
+            exit = fadeOut(tween(fadeOutMs))
+        ) {
+            BusyOverlay("Saving scan…", Modifier.fillMaxSize())
         }
     }
 }
@@ -121,3 +146,11 @@ private suspend fun finishScan(ctx: Context, mode: Mode, files: List<File>): Sca
         runCatching { Exporter.writeThumb(ctx, scan) } // a missing thumbnail is not fatal
         scan
     }
+
+/** Navigation depth, used to decide the direction of the screen transition. */
+private fun depth(s: Screen): Int = when (s) {
+    Screen.Home -> 0
+    Screen.DoubleSide, Screen.Regular -> 1
+    Screen.Pages -> 2
+    is Screen.Result -> 3
+}
