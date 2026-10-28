@@ -1,7 +1,23 @@
 package app.flipscan.ui
 
 import android.widget.Toast
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -70,23 +86,46 @@ fun HomeScreen(onDoubleSide: () -> Unit, onRegular: () -> Unit, onOpen: (Scan) -
         }
     }
 
-    Box(Modifier.fillMaxSize()) {
-        Column(Modifier.fillMaxSize().padding(horizontal = 20.dp, vertical = 16.dp)) {
-            Text("FlipScan", style = MaterialTheme.typography.headlineLarge)
-            Text("Both sides of a card on one page. Offline, no ads.", modifier = Modifier.padding(bottom = 16.dp))
-            BigButton("Double Side", "Aadhaar, PAN, DL, voter ID, college ID", onDoubleSide)
-            Spacer(Modifier.height(12.dp))
-            BigButton("Regular", "Passbooks, certificates, any document", onRegular)
+    // Soft entrance: content fades and slides up once.
+    val enter = remember { Animatable(0f) }
+    LaunchedEffect(Unit) { enter.animateTo(1f, tween(550, easing = FastOutSlowInEasing)) }
 
-            Text("Recent scans", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 20.dp, bottom = 4.dp))
-            if (scans.isEmpty()) {
-                Text("Nothing yet. Your scans appear here.")
-            } else {
-                LazyColumn(Modifier.weight(1f)) {
-                    items(count = scans.size, key = { scans[it].id }) { i ->
-                        val scan = scans[i]
-                        ScanRow(scan, onOpen = { onOpen(scan) }, onShare = { share(scan) },
-                            onRename = { renaming = scan }, onDelete = { deleting = scan })
+    Box(Modifier.fillMaxSize()) {
+        Column(Modifier.fillMaxSize()) {
+            Box(
+                Modifier.fillMaxWidth()
+                    .clip(RoundedCornerShape(bottomStart = 32.dp, bottomEnd = 32.dp))
+                    .background(Brush.linearGradient(listOf(Indigo, Violet, Teal)))
+                    .padding(horizontal = 20.dp, vertical = 24.dp)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    CardArt(Modifier.size(76.dp))
+                    Column(Modifier.padding(start = 16.dp)) {
+                        Text("FlipScan", style = MaterialTheme.typography.headlineLarge, color = Color.White)
+                        Text("Both sides on one page.\nOffline, no ads.", color = Color.White.copy(alpha = 0.9f))
+                    }
+                }
+            }
+
+            Column(
+                Modifier.weight(1f).padding(horizontal = 20.dp)
+                    .graphicsLayer { alpha = enter.value; translationY = (1f - enter.value) * 48f }
+            ) {
+                Spacer(Modifier.height(16.dp))
+                BigButton("Double Side", "Aadhaar, PAN, DL, voter ID, college ID", listOf(Indigo, Violet), true, onDoubleSide)
+                Spacer(Modifier.height(12.dp))
+                BigButton("Regular", "Passbooks, certificates, any document", listOf(Teal, Color(0xFF0EA5E9)), false, onRegular)
+
+                Text("Recent scans", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 20.dp, bottom = 4.dp))
+                if (scans.isEmpty()) {
+                    Text("Nothing yet. Your scans appear here.")
+                } else {
+                    LazyColumn(Modifier.weight(1f)) {
+                        items(count = scans.size, key = { scans[it].id }) { i ->
+                            val scan = scans[i]
+                            ScanRow(scan, onOpen = { onOpen(scan) }, onShare = { share(scan) },
+                                onRename = { renaming = scan }, onDelete = { deleting = scan })
+                        }
                     }
                 }
             }
@@ -136,8 +175,12 @@ fun HomeScreen(onDoubleSide: () -> Unit, onRegular: () -> Unit, onOpen: (Scan) -
 private fun ScanRow(scan: Scan, onOpen: () -> Unit, onShare: () -> Unit, onRename: () -> Unit, onDelete: () -> Unit) {
     val ctx = LocalContext.current
     var menu by remember { mutableStateOf(false) }
-    Row(Modifier.fillMaxWidth().clickable(onClick = onOpen).padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-        PageThumb(ScanStore.thumbFile(ctx, scan.id), Modifier.size(width = 56.dp, height = 72.dp), maxSide = 240)
+    Row(
+        Modifier.fillMaxWidth().padding(vertical = 4.dp).clip(RoundedCornerShape(16.dp)).background(Color.White)
+            .pressable(onOpen).padding(8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        PageThumb(ScanStore.thumbFile(ctx, scan.id), Modifier.size(width = 56.dp, height = 72.dp).clip(RoundedCornerShape(8.dp)), maxSide = 240)
         Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
             Text(scan.name, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
             val date = DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT).format(Date(scan.createdAt))
@@ -155,11 +198,56 @@ private fun ScanRow(scan: Scan, onOpen: () -> Unit, onShare: () -> Unit, onRenam
 }
 
 @Composable
-private fun BigButton(title: String, subtitle: String, onClick: () -> Unit) {
-    Button(onClick = onClick, modifier = Modifier.fillMaxWidth().height(96.dp), shape = RoundedCornerShape(20.dp)) {
-        Column(horizontalAlignment = Alignment.Start, modifier = Modifier.fillMaxWidth()) {
-            Text(title, style = MaterialTheme.typography.titleLarge)
-            Text(subtitle, style = MaterialTheme.typography.bodyMedium)
+private fun BigButton(title: String, subtitle: String, colors: List<Color>, cards: Boolean, onClick: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().height(96.dp)
+            .clip(RoundedCornerShape(22.dp))
+            .background(Brush.horizontalGradient(colors))
+            .pressable(onClick)
+            .padding(horizontal = 18.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        MiniIcon(cards, Modifier.size(44.dp))
+        Column(Modifier.padding(start = 16.dp)) {
+            Text(title, style = MaterialTheme.typography.titleLarge, color = Color.White)
+            Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = Color.White.copy(alpha = 0.9f))
         }
+    }
+}
+
+/** Two stacked cards (Double Side) or a sheet of paper (Regular). */
+@Composable
+private fun MiniIcon(cards: Boolean, modifier: Modifier) {
+    Canvas(modifier) {
+        val r = CornerRadius(5.dp.toPx())
+        if (cards) {
+            drawRoundRect(Color.White, Offset(0f, 2.dp.toPx()), Size(size.width, size.height * 0.4f), r)
+            drawRoundRect(Color.White.copy(alpha = 0.6f), Offset(0f, size.height * 0.56f), Size(size.width, size.height * 0.4f), r)
+        } else {
+            drawRoundRect(Color.White, Offset(size.width * 0.15f, 0f), Size(size.width * 0.7f, size.height), r)
+            for (i in 1..4) {
+                drawRoundRect(
+                    Color(0xFF0EA5E9).copy(alpha = 0.5f),
+                    Offset(size.width * 0.25f, size.height * (0.15f + i * 0.16f)), Size(size.width * 0.5f, 3.dp.toPx()), CornerRadius(2.dp.toPx())
+                )
+            }
+        }
+    }
+}
+
+/** Header illustration: two cards gently floating in opposite directions. */
+@Composable
+private fun CardArt(modifier: Modifier) {
+    val float = rememberInfiniteTransition(label = "float").animateFloat(
+        initialValue = 0f, targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(2200, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+        label = "floatValue"
+    )
+    Canvas(modifier) {
+        val dy = float.value * 6.dp.toPx()
+        val r = CornerRadius(8.dp.toPx())
+        drawRoundRect(Color.White.copy(alpha = 0.55f), Offset(0f, size.height * 0.5f + 4.dp.toPx() - dy), Size(size.width, size.height * 0.4f), r)
+        drawRoundRect(Color.White, Offset(0f, size.height * 0.08f + dy), Size(size.width, size.height * 0.4f), r)
+        drawRoundRect(Indigo.copy(alpha = 0.35f), Offset(8.dp.toPx(), size.height * 0.08f + dy + 8.dp.toPx()), Size(size.width * 0.35f, 6.dp.toPx()), CornerRadius(3.dp.toPx()))
     }
 }

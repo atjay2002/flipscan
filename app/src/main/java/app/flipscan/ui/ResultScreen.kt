@@ -39,6 +39,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
@@ -59,6 +60,7 @@ import app.flipscan.data.ExportSettings
 import app.flipscan.data.Filter
 import app.flipscan.data.Format
 import app.flipscan.data.Mode
+import app.flipscan.data.Orientation
 import app.flipscan.data.Paper
 import app.flipscan.data.Scan
 import app.flipscan.data.ScanStore
@@ -90,6 +92,7 @@ private fun ResultContent(scan: Scan, onBack: () -> Unit) {
     var settings by remember { mutableStateOf(SettingsStore.load(ctx)) }
     var previews by remember { mutableStateOf<List<Bitmap>>(emptyList()) }
     var busy by remember { mutableStateOf<String?>(null) }
+    var rev by remember { mutableIntStateOf(0) } // bumps after a rotation to rebuild the preview
 
     fun update(n: ExportSettings) {
         settings = n
@@ -97,7 +100,7 @@ private fun ResultContent(scan: Scan, onBack: () -> Unit) {
     }
 
     // Preview is rebuilt in the background whenever a setting changes (small bitmaps only).
-    LaunchedEffect(scan.id, settings) {
+    LaunchedEffect(scan.id, settings, rev) {
         delay(120) // debounce slider drags
         previews = withContext(Dispatchers.Default) { Exporter.previews(ctx, scan, settings) }
     }
@@ -151,7 +154,7 @@ private fun ResultContent(scan: Scan, onBack: () -> Unit) {
                 Text(scan.name, style = MaterialTheme.typography.titleMedium, maxLines = 1)
             }
 
-            Box(Modifier.fillMaxWidth().height(280.dp).background(Color(0xFFE9ECEF)), contentAlignment = Alignment.Center) {
+            Box(Modifier.fillMaxWidth().height(250.dp).background(Color(0xFFE9ECEF)), contentAlignment = Alignment.Center) {
                 if (previews.isEmpty()) {
                     CircularProgressIndicator()
                 } else {
@@ -173,6 +176,28 @@ private fun ResultContent(scan: Scan, onBack: () -> Unit) {
                 }
             }
 
+            Row(
+                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Rotate:", style = MaterialTheme.typography.labelLarge)
+                scan.pages.indices.forEach { i ->
+                    val name = if (scan.mode == Mode.CARDS) (if (i == 0) "Front" else "Back") else "Page ${i + 1}"
+                    OutlinedButton(onClick = {
+                        scope.launch {
+                            busy = "Rotating…"
+                            withContext(Dispatchers.IO) {
+                                ScanStore.rotatePage(ctx, scan, i)
+                                runCatching { Exporter.writeThumb(ctx, scan) }
+                            }
+                            busy = null
+                            rev++
+                        }
+                    }) { Text("↻ $name") }
+                }
+            }
+
             Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 SettingsControls(scan, settings, ::update)
             }
@@ -189,6 +214,7 @@ private fun ResultContent(scan: Scan, onBack: () -> Unit) {
 @Composable
 private fun SettingsControls(scan: Scan, s: ExportSettings, update: (ExportSettings) -> Unit) {
     Choice("Paper size", Paper.entries, s.paper, { it.label }) { update(s.copy(paper = it)) }
+    Choice("Page orientation", Orientation.entries, s.orientation, { it.label }) { update(s.copy(orientation = it)) }
     if (s.paper == Paper.CUSTOM) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             MmField("Width (mm)", s.customW, Modifier.weight(1f)) { update(s.copy(customW = it)) }

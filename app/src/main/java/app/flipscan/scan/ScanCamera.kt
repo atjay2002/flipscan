@@ -21,6 +21,17 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.withFrameNanos
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.ui.geometry.Size as GSize
+import androidx.compose.ui.graphics.Brush
+import kotlinx.coroutines.delay
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -51,6 +62,12 @@ class ScanCameraState(context: Context, val cardMode: Boolean) {
         private set
     var capturing by mutableStateOf(false)
         private set
+
+    /** 0..1: how long the document has been held steady (1 = auto-capture fires). */
+    var steady by mutableFloatStateOf(0f)
+        private set
+
+    fun setSteady(v: Float) { steady = v }
 
     private val mainExecutor = ContextCompat.getMainExecutor(context)
     private val analysisExecutor: ExecutorService = Executors.newSingleThreadExecutor()
@@ -161,66 +178,135 @@ fun ScanCameraView(
     }
 }
 
-/** Draws the detected corners. Reading state inside the draw lambda = redraw only, no recomposition. */
+private val Green = Color(0xFF00E676)
+private val Amber = Color(0xFFFFB300)
+
+/**
+ * Draws the detected corners (smoothed frame by frame, green = good, amber = blur/glare)
+ * and a sweeping scan line while nothing is found.
+ * Everything is read inside the draw lambda, so there is no recomposition.
+ */
 @Composable
 private fun CornerOverlay(state: ScanCameraState, modifier: Modifier) {
+    val smooth = remember { FloatArray(8) }
+    var tick by remember { mutableIntStateOf(0) }
+    val sweep = rememberInfiniteTransition(label = "sweep").animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(1600, easing = LinearEasing), RepeatMode.Reverse),
+        label = "sweepValue"
+    )
+
+    // Each frame, glide the shown corners toward the latest detection (no more jumping boxes).
+    LaunchedEffect(state) {
+        var has = false
+        while (true) {
+            withFrameNanos { }
+            val q = state.live?.quad
+            if (q == null) {
+                if (has) { has = false; tick++ }
+            } else {
+                val t = floatArrayOf(
+                    q.tl.x.toFloat(), q.tl.y.toFloat(), q.tr.x.toFloat(), q.tr.y.toFloat(),
+                    q.br.x.toFloat(), q.br.y.toFloat(), q.bl.x.toFloat(), q.bl.y.toFloat()
+                )
+                if (!has) {
+                    t.copyInto(smooth)
+                    has = true
+                } else {
+                    for (i in 0 until 8) smooth[i] += (t[i] - smooth[i]) * 0.3f
+                }
+                tick++
+            }
+        }
+    }
+
     Canvas(modifier) {
+        if (tick < 0) return@Canvas // reading it here makes the canvas redraw on each smoothing step
         val r = state.live ?: return@Canvas
-        val q = r.quad ?: return@Canvas
+        if (r.quad == null) {
+            val y = size.height * sweep.value
+            val band = 70.dp.toPx()
+            drawRect(
+                Brush.verticalGradient(
+                    listOf(Color.Transparent, Color(0x5500E5FF), Color.Transparent),
+                    startY = y - band, endY = y + band
+                ),
+                topLeft = Offset(0f, y - band), size = GSize(size.width, band * 2)
+            )
+            drawLine(Color(0xAA00E5FF), Offset(0f, y), Offset(size.width, y), strokeWidth = 2.dp.toPx())
+            return@Canvas
+        }
         // Same math as PreviewView FILL_CENTER: scale to cover, centered.
         val scale = max(size.width / r.imgW, size.height / r.imgH)
         val dx = (size.width - r.imgW * scale) / 2f
         val dy = (size.height - r.imgH * scale) / 2f
-        val pts = q.toList().map { Offset((it.x * r.imgW * scale + dx).toFloat(), (it.y * r.imgH * scale + dy).toFloat()) }
+        val pts = (0..3).map { i ->
+            Offset(smooth[2 * i] * r.imgW * scale + dx, smooth[2 * i + 1] * r.imgH * scale + dy)
+        }
         val path = Path().apply {
             moveTo(pts[0].x, pts[0].y)
             for (i in 1..3) lineTo(pts[i].x, pts[i].y)
             close()
         }
-        val green = Color(0xFF00E676)
-        drawPath(path, green.copy(alpha = 0.18f))
-        drawPath(path, green, style = Stroke(width = 3.dp.toPx()))
-        pts.forEach { drawCircle(green, radius = 7.dp.toPx(), center = it) }
+        val col = if (r.blurry || r.glare) Amber else Green
+        drawPath(path, col.copy(alpha = 0.10f + 0.22f * state.steady)) // fills up while holding steady
+        drawPath(path, col, style = Stroke(width = 3.dp.toPx()))
+        pts.forEach {
+            drawCircle(Color.White, radius = 9.dp.toPx(), center = it)
+            drawCircle(col, radius = 6.dp.toPx(), center = it)
+        }
     }
 }
 
 /**
  * Fires [onTrigger] once the document has been detected and held still for about 1 second.
- * [shots] = number of captures so far. After a capture it waits until the page was taken away
- * or swapped, so the same page (or the same card side) is not captured twice.
+ * [shots] = number of captures so far. After a capture it waits for the page to be moved or
+ * taken away (at most 2.5 s), so the same page is not captured twice.
+ * It polls every ~80 ms, so the timer advances even when two results look identical.
  */
 @Composable
 fun AutoCaptureEffect(state: ScanCameraState, enabled: Boolean, shots: Int, onTrigger: () -> Unit) {
     val trigger by rememberUpdatedState(onTrigger)
     LaunchedEffect(state, enabled, shots) {
+        state.setSteady(0f)
         if (!enabled) return@LaunchedEffect
+        val startedAt = SystemClock.elapsedRealtime()
         var waiting = shots > 0
         var anchor: Quad? = null
         var last: Quad? = null
         var since = 0L
-        snapshotFlow { state.live }.collect { r ->
-            val q = r?.quad
+        while (true) {
+            delay(80)
+            val q = state.live?.quad
+            val now = SystemClock.elapsedRealtime()
             if (waiting) {
-                if (q == null) {
+                if (q == null || now - startedAt > 2500) {
                     waiting = false
                 } else {
                     val a = anchor
-                    if (a == null) anchor = q else if (q.maxShift(a) > 0.12) waiting = false
+                    if (a == null) anchor = q else if (q.maxShift(a) > 0.06) waiting = false
                 }
-                if (waiting) return@collect
+                if (waiting) continue
             }
             if (q == null) {
                 last = null
-                return@collect
+                state.setSteady(0f)
+                continue
             }
-            val now = SystemClock.elapsedRealtime()
             val prev = last
             if (prev == null || q.maxShift(prev) > 0.02) { // moved more than 2% of the frame: restart
                 last = q
                 since = now
-            } else if (now - since >= 1000) {
-                last = null
-                trigger()
+                state.setSteady(0f)
+            } else {
+                val p = ((now - since) / 1000f).coerceIn(0f, 1f)
+                state.setSteady(p)
+                if (p >= 1f) {
+                    last = null
+                    state.setSteady(0f)
+                    trigger()
+                }
             }
         }
     }

@@ -1,6 +1,8 @@
 package app.flipscan.ui
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -54,6 +56,7 @@ private fun RegularContent(pages: SnapshotStateList<File>, onDone: () -> Unit, o
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
     val cam = rememberScanCameraState(cardMode = false)
+    val flash = remember { Animatable(0f) }
     var busy by remember { mutableStateOf(false) }
     var auto by remember { mutableStateOf(true) }
     var shots by remember { mutableIntStateOf(0) }
@@ -71,6 +74,7 @@ private fun RegularContent(pages: SnapshotStateList<File>, onDone: () -> Unit, o
                 busy = false
                 return@takePicture
             }
+            scope.launch { flash.snapTo(0.85f); flash.animateTo(0f, tween(380)) }
             scope.launch {
                 val page = Work.newFile(ctx, "page")
                 val good = withContext(Dispatchers.Default) { PageProcessor.process(raw, page, false, quad) }
@@ -91,6 +95,7 @@ private fun RegularContent(pages: SnapshotStateList<File>, onDone: () -> Unit, o
     Box(Modifier.fillMaxSize().background(Color.Black)) {
         // No animation on this screen, so the cheaper SurfaceView preview is used.
         ScanCameraView(cam, Modifier.fillMaxSize())
+        FlashOverlay({ flash.value }, Modifier.fillMaxSize())
 
         Row(Modifier.fillMaxWidth().padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
             TextButton(onClick = { if (pages.isEmpty()) onBack() else confirmExit = true }) {
@@ -118,7 +123,7 @@ private fun RegularContent(pages: SnapshotStateList<File>, onDone: () -> Unit, o
                     Text("Auto", color = Color.White, fontSize = 12.sp)
                     Switch(checked = auto, onCheckedChange = { auto = it })
                 }
-                ShutterButton(enabled = !busy, onClick = ::shoot)
+                ShutterButton(enabled = !busy, progress = { cam.steady }, onClick = ::shoot)
                 Box(Modifier.width(90.dp), contentAlignment = Alignment.Center) {
                     if (pages.isNotEmpty() && !busy) Button(onClick = onDone) { Text("Done (${pages.size})") }
                 }

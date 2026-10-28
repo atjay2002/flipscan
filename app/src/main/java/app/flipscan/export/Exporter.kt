@@ -24,7 +24,7 @@ object Exporter {
     /** Cards: one sheet with both sides. Documents: one sheet per page. */
     private fun sheets(ctx: Context, scan: Scan, s: ExportSettings): List<Sheet> {
         val files = ScanStore.pageFiles(ctx, scan)
-        if (scan.mode == Mode.CARDS && files.size >= 2) return listOf(Layouts.cards(s) to files.take(2))
+        if (scan.mode == Mode.CARDS && files.size >= 2) return listOf(Layouts.cards(s, files.take(2).map { PageLoader.size(it) }) to files.take(2))
         return files.map { f ->
             val (w, h) = PageLoader.size(f)
             Layouts.document(w.coerceAtLeast(1), h.coerceAtLeast(1), s) to listOf(f)

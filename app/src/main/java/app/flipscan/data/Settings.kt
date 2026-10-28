@@ -10,6 +10,8 @@ enum class Paper(val label: String, val wMm: Float, val hMm: Float) {
     CUSTOM("Custom", 0f, 0f)
 }
 
+enum class Orientation(val label: String) { AUTO("Auto"), PORTRAIT("Portrait"), LANDSCAPE("Landscape") }
+
 enum class CardLayout(val label: String) { STACKED("Stacked"), SIDE_BY_SIDE("Side by side") }
 
 enum class Filter(val label: String) {
@@ -27,6 +29,7 @@ data class ExportSettings(
     val paper: Paper = Paper.A4,
     val customW: Float = 210f,
     val customH: Float = 297f,
+    val orientation: Orientation = Orientation.AUTO,
     val layout: CardLayout = CardLayout.STACKED,
     val marginMm: Float = 10f,
     val cutLine: Boolean = false,
@@ -38,6 +41,18 @@ data class ExportSettings(
 ) {
     val paperW: Float get() = if (paper == Paper.CUSTOM) customW else paper.wMm
     val paperH: Float get() = if (paper == Paper.CUSTOM) customH else paper.hMm
+
+    /** Sheet (width, height) in mm. AUTO uses [autoLandscape] (cards: side by side; documents: wide page). */
+    fun sheetSize(autoLandscape: Boolean): Pair<Float, Float> {
+        val lo = minOf(paperW, paperH)
+        val hi = maxOf(paperW, paperH)
+        val landscape = when (orientation) {
+            Orientation.PORTRAIT -> false
+            Orientation.LANDSCAPE -> true
+            Orientation.AUTO -> autoLandscape
+        }
+        return if (landscape) hi to lo else lo to hi
+    }
 }
 
 object SettingsStore {
@@ -50,6 +65,7 @@ object SettingsStore {
             paper = p.enum("paper", d.paper),
             customW = p.getFloat("customW", d.customW),
             customH = p.getFloat("customH", d.customH),
+            orientation = p.enum("orientation", d.orientation),
             layout = p.enum("layout", d.layout),
             marginMm = p.getFloat("marginMm", d.marginMm),
             cutLine = p.getBoolean("cutLine", d.cutLine),
@@ -65,6 +81,7 @@ object SettingsStore {
             .putString("paper", s.paper.name)
             .putFloat("customW", s.customW)
             .putFloat("customH", s.customH)
+            .putString("orientation", s.orientation.name)
             .putString("layout", s.layout.name)
             .putFloat("marginMm", s.marginMm)
             .putBoolean("cutLine", s.cutLine)
