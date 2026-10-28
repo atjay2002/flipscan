@@ -7,3 +7,6 @@ local.properties
 captures/
 .externalNativeBuild/
 .cxx/
+AGENTS.md
+.kotlin/
+docs/*.local

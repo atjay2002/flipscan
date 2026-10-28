@@ -15,7 +15,6 @@ import androidx.camera.view.PreviewView
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.matchParentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -26,6 +25,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
@@ -43,6 +43,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -67,7 +68,7 @@ class ScanCameraState(context: Context, val cardMode: Boolean) {
     var steady by mutableFloatStateOf(0f)
         private set
 
-    fun setSteady(v: Float) { steady = v }
+    fun updateSteady(v: Float) { steady = v }
 
     private val mainExecutor = ContextCompat.getMainExecutor(context)
     private val analysisExecutor: ExecutorService = Executors.newSingleThreadExecutor()
@@ -269,7 +270,7 @@ private fun CornerOverlay(state: ScanCameraState, modifier: Modifier) {
 fun AutoCaptureEffect(state: ScanCameraState, enabled: Boolean, shots: Int, onTrigger: () -> Unit) {
     val trigger by rememberUpdatedState(onTrigger)
     LaunchedEffect(state, enabled, shots) {
-        state.setSteady(0f)
+        state.updateSteady(0f)
         if (!enabled) return@LaunchedEffect
         val startedAt = SystemClock.elapsedRealtime()
         var waiting = shots > 0
@@ -291,20 +292,20 @@ fun AutoCaptureEffect(state: ScanCameraState, enabled: Boolean, shots: Int, onTr
             }
             if (q == null) {
                 last = null
-                state.setSteady(0f)
+                state.updateSteady(0f)
                 continue
             }
             val prev = last
             if (prev == null || q.maxShift(prev) > 0.02) { // moved more than 2% of the frame: restart
                 last = q
                 since = now
-                state.setSteady(0f)
+                state.updateSteady(0f)
             } else {
                 val p = ((now - since) / 1000f).coerceIn(0f, 1f)
-                state.setSteady(p)
+                state.updateSteady(p)
                 if (p >= 1f) {
                     last = null
-                    state.setSteady(0f)
+                    state.updateSteady(0f)
                     trigger()
                 }
             }

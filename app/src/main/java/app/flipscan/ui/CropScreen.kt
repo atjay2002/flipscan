@@ -6,6 +6,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -14,6 +15,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -107,7 +109,7 @@ fun CropScreen(scan: Scan, index: Int, onClose: (changed: Boolean) -> Unit) {
                 val image = remember(loaded) { loaded.bitmap.asImageBitmap() }
                 Image(image, contentDescription = null, contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize())
                 Canvas(
-                    Modifier.fillMaxSize().pointerInput(loaded, boxW, boxH) {
+                    Modifier.fillMaxSize().pointerInput(loaded, left, top, iw, ih, grab) {
                         var active = -1
                         detectDragGestures(
                             onDragStart = { pos ->
@@ -151,11 +153,15 @@ fun CropScreen(scan: Scan, index: Int, onClose: (changed: Boolean) -> Unit) {
                 }
             }
             Row(
-                Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                OutlinedButton(onClick = { quad = Quad(quad.tr, quad.br, quad.bl, quad.tl) }) { Text("↺ Rotate", color = Color.White) }
-                OutlinedButton(onClick = { quad = Quad(quad.bl, quad.tl, quad.tr, quad.br) }) { Text("↻ Rotate", color = Color.White) }
+                OutlinedButton(onClick = { quad = Quad(quad.tr, quad.br, quad.bl, quad.tl) }) {
+                    Text("Rotate left", color = Color.White)
+                }
+                OutlinedButton(onClick = { quad = Quad(quad.bl, quad.tl, quad.tr, quad.br) }) {
+                    Text("Rotate right", color = Color.White)
+                }
                 OutlinedButton(onClick = { quad = FullImage }) { Text("Reset", color = Color.White) }
             }
             androidx.compose.material3.Button(
