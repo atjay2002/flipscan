@@ -52,6 +52,7 @@ import app.flipscan.data.Work
 import app.flipscan.scan.AutoCaptureEffect
 import app.flipscan.scan.PageProcessor
 import app.flipscan.scan.ScanCameraState
+import app.flipscan.scan.Sidecar
 import app.flipscan.scan.ScanCameraView
 import app.flipscan.scan.rememberScanCameraState
 import app.flipscan.scan.statusText
@@ -108,9 +109,9 @@ private fun DoubleSideContent(onBack: () -> Unit, onDone: (File, File) -> Unit) 
                 if (good) {
                     val thumb = withContext(Dispatchers.IO) { decodeSampled(page, 800) }
                     if (slot == 0) {
-                        frontFile?.delete(); frontFile = page; frontThumb = thumb
+                        frontFile?.let { Sidecar.deleteAll(it) }; frontFile = page; frontThumb = thumb
                     } else {
-                        backFile?.delete(); backFile = page; backThumb = thumb
+                        backFile?.let { Sidecar.deleteAll(it) }; backFile = page; backThumb = thumb
                     }
                     shots++
                     // Move on to the other side if it is still empty, otherwise we are done.

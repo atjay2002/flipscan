@@ -2,7 +2,6 @@ package app.flipscan.scan
 
 import org.opencv.core.Mat
 import org.opencv.core.MatOfInt
-import org.opencv.core.Rect
 import org.opencv.core.Size
 import org.opencv.imgcodecs.Imgcodecs
 import org.opencv.imgproc.Imgproc
@@ -15,11 +14,13 @@ object PageProcessor {
     const val CARD_W = 1011
     const val CARD_H = 638
     private const val MAX_SIDE = 3508 // A4 long side at 300 dpi
+    private const val ORIG_SIDE = 2400 // stored original: long side
     private const val CARD_RATIO = 85.6 / 54.0
 
     /**
-     * Reads [raw], finds the document (falls back to [liveQuad], then to the whole image),
-     * and writes the corrected page to [out] as JPEG. Only one full-res image is in memory.
+     * Reads [raw], finds the document (falls back to [liveQuad], then to a sensible default),
+     * writes the corrected page to [out] and keeps a downscaled original + the crop corners
+     * next to it (see [Sidecar]) so the crop can be edited later.
      */
     fun process(raw: File, out: File, cardMode: Boolean, liveQuad: Quad?): Boolean {
         // imread applies the EXIF rotation, so the image is upright like the live preview.
@@ -27,8 +28,26 @@ object PageProcessor {
         var page: Mat? = null
         try {
             if (src.empty()) return false
-            val quad = detectOnCapture(src, cardMode) ?: liveQuad
-            page = if (quad != null) crop(src, quad, cardMode) else fallback(src, cardMode)
+            val found = detectOnCapture(src, cardMode) ?: liveQuad ?: defaultQuad(src, cardMode)
+            val quad = orient(found, src.cols(), src.rows(), cardMode)
+            page = render(src, quad, cardMode)
+            if (!Imgcodecs.imwrite(out.absolutePath, page, MatOfInt(Imgcodecs.IMWRITE_JPEG_QUALITY, 92))) return false
+            writeOriginal(src, Sidecar.orig(out))
+            Sidecar.writeQuad(out, quad)
+            return true
+        } finally {
+            src.release()
+            page?.release()
+        }
+    }
+
+    /** Re-crops the stored original with a user-adjusted [quad]. */
+    fun recrop(orig: File, out: File, quad: Quad, cardMode: Boolean): Boolean {
+        val src = Imgcodecs.imread(orig.absolutePath)
+        var page: Mat? = null
+        try {
+            if (src.empty()) return false
+            page = render(src, quad, cardMode)
             return Imgcodecs.imwrite(out.absolutePath, page, MatOfInt(Imgcodecs.IMWRITE_JPEG_QUALITY, 92))
         } finally {
             src.release()
@@ -50,48 +69,56 @@ object PageProcessor {
         }
     }
 
-    private fun crop(src: Mat, quad: Quad, cardMode: Boolean): Mat {
+    /** Nothing detected: cards get a centered card-shaped box, documents the whole frame. */
+    private fun defaultQuad(src: Mat, cardMode: Boolean): Quad {
+        var wn = 1.0
+        var hn = 1.0
+        if (cardMode) {
+            val a = src.cols().toDouble() / src.rows()
+            if (a >= CARD_RATIO) wn = CARD_RATIO / a else hn = a / CARD_RATIO
+        }
+        val l = (1 - wn) / 2
+        val t = (1 - hn) / 2
+        return Quad(Pt(l, t), Pt(l + wn, t), Pt(l + wn, t + hn), Pt(l, t + hn))
+    }
+
+    /** Cards: if the shape is upright, cycle the corners so the result is landscape. */
+    private fun orient(q: Quad, sw: Int, sh: Int, cardMode: Boolean): Quad {
+        if (!cardMode) return q
+        val px = q.toList().map { Pt(it.x * sw, it.y * sh) }
+        val w = (dist(px[0], px[1]) + dist(px[3], px[2])) / 2
+        val h = (dist(px[0], px[3]) + dist(px[1], px[2])) / 2
+        return if (h > w) Quad(q.bl, q.tl, q.tr, q.br) else q
+    }
+
+    /** Warps the quad (as given: corner order decides the rotation) into the page image. */
+    private fun render(src: Mat, quad: Quad, cardMode: Boolean): Mat {
         val sw = src.cols()
         val sh = src.rows()
         val px = quad.toList().map { Pt(it.x * sw, it.y * sh) }
-        var w = (dist(px[0], px[1]) + dist(px[3], px[2])) / 2
-        var h = (dist(px[0], px[3]) + dist(px[1], px[2])) / 2
-        var q = quad
-        if (cardMode && h > w) {
-            // Card was shot upright: rotate the corner order so the result is landscape.
-            q = Quad(quad.bl, quad.tl, quad.tr, quad.br)
-            val t = w; w = h; h = t
-        }
+        val w = (dist(px[0], px[1]) + dist(px[3], px[2])) / 2
+        val h = (dist(px[0], px[3]) + dist(px[1], px[2])) / 2
         val mw = w.roundToInt().coerceAtLeast(1)
         val mh = h.roundToInt().coerceAtLeast(1)
-        val warped = Detector.warp(src, q, mw, mh)
+        val warped = Detector.warp(src, quad, mw, mh)
         // Warp at measured size, then shrink with INTER_AREA (sharper than shrinking inside the warp).
-        val (fw, fh) = if (cardMode) CARD_W to CARD_H else limit(mw, mh)
+        val (fw, fh) = when {
+            !cardMode -> limit(mw, mh)
+            mw >= mh -> CARD_W to CARD_H
+            else -> CARD_H to CARD_W // a card the user rotated upright
+        }
         return resized(warped, fw, fh)
     }
 
-    /** No document found: keep the whole frame (cards: center crop to card shape). */
-    private fun fallback(src: Mat, cardMode: Boolean): Mat {
-        if (!cardMode) {
-            val (fw, fh) = limit(src.cols(), src.rows())
-            val copy = Mat()
-            src.copyTo(copy)
-            return resized(copy, fw, fh)
+    private fun writeOriginal(src: Mat, out: File) {
+        val s = minOf(1.0, ORIG_SIDE.toDouble() / maxOf(src.cols(), src.rows()))
+        val small = Mat()
+        try {
+            if (s < 1.0) Imgproc.resize(src, small, Size(), s, s, Imgproc.INTER_AREA) else src.copyTo(small)
+            Imgcodecs.imwrite(out.absolutePath, small, MatOfInt(Imgcodecs.IMWRITE_JPEG_QUALITY, 90))
+        } finally {
+            small.release()
         }
-        val sw = src.cols()
-        val sh = src.rows()
-        val roi = if (sw / sh.toDouble() >= CARD_RATIO) {
-            val cw = (sh * CARD_RATIO).roundToInt()
-            Rect((sw - cw) / 2, 0, cw, sh)
-        } else {
-            val ch = (sw / CARD_RATIO).roundToInt()
-            Rect(0, (sh - ch) / 2, sw, ch)
-        }
-        val part = src.submat(roi)
-        val copy = Mat()
-        part.copyTo(copy)
-        part.release()
-        return resized(copy, CARD_W, CARD_H)
     }
 
     private fun limit(w: Int, h: Int): Pair<Int, Int> {

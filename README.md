@@ -12,6 +12,7 @@ Scan **both sides** of a card (Aadhaar, PAN, driving licence, voter ID, college 
 - **Detection (OpenCV)**: downscaled frames, every 3rd frame, background thread, latest-frame-only; grayscale, blur, Canny, largest quadrilateral, perspective warp on the full-resolution photo. Corner overlay, auto-capture after ~1 s steady, blur and glare warnings.
 - **Output**: A4 / A5 / Letter / custom; stacked or side by side; margins, cut line, real size or fit; filters (original, grayscale, B&W, magic color); PDF / JPG / PNG; compress to 200 KB / 500 KB / 1 MB.
 - **Orientation**: page orientation Auto / Portrait / Landscape, and a Rotate button per page (cards stay correctly shaped when rotated).
+- **Per-page edit**: Rotate and manual Crop (drag 4 corners, perspective corrected) for every page. The original photo is kept, downscaled, in app-private storage so a crop can be redone.
 - **Polish**: gradient theme, animated home, smoothed corner overlay with scan line, steady-ring on the shutter, capture flash, cross-fade between screens.
 - **Save and share**: Downloads/FlipScan via MediaStore, or the system share sheet. Recent scans with rename, delete, share.
 

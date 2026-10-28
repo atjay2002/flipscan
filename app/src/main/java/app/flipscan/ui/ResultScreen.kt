@@ -60,6 +60,7 @@ import app.flipscan.data.ExportSettings
 import app.flipscan.data.Filter
 import app.flipscan.data.Format
 import app.flipscan.data.Mode
+import app.flipscan.data.PageEditor
 import app.flipscan.data.Orientation
 import app.flipscan.data.Paper
 import app.flipscan.data.Scan
@@ -92,6 +93,7 @@ private fun ResultContent(scan: Scan, onBack: () -> Unit) {
     var settings by remember { mutableStateOf(SettingsStore.load(ctx)) }
     var previews by remember { mutableStateOf<List<Bitmap>>(emptyList()) }
     var busy by remember { mutableStateOf<String?>(null) }
+    var cropIndex by remember { mutableStateOf<Int?>(null) }
     var rev by remember { mutableIntStateOf(0) } // bumps after a rotation to rebuild the preview
 
     fun update(n: ExportSettings) {
@@ -176,25 +178,27 @@ private fun ResultContent(scan: Scan, onBack: () -> Unit) {
                 }
             }
 
+            // Per-page tools: rotate 90° and manual crop.
             Row(
                 Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("Rotate:", style = MaterialTheme.typography.labelLarge)
                 scan.pages.indices.forEach { i ->
                     val name = if (scan.mode == Mode.CARDS) (if (i == 0) "Front" else "Back") else "Page ${i + 1}"
+                    Text(name, style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(start = 6.dp))
                     OutlinedButton(onClick = {
                         scope.launch {
                             busy = "Rotating…"
                             withContext(Dispatchers.IO) {
-                                ScanStore.rotatePage(ctx, scan, i)
+                                PageEditor.rotate(ctx, scan, i)
                                 runCatching { Exporter.writeThumb(ctx, scan) }
                             }
                             busy = null
                             rev++
                         }
-                    }) { Text("↻ $name") }
+                    }) { Text("↻") }
+                    OutlinedButton(onClick = { cropIndex = i }) { Text("Crop") }
                 }
             }
 
@@ -208,6 +212,12 @@ private fun ResultContent(scan: Scan, onBack: () -> Unit) {
             }
         }
         busy?.let { BusyOverlay(it, Modifier.fillMaxSize()) }
+        cropIndex?.let { i ->
+            CropScreen(scan, i) { changed ->
+                cropIndex = null
+                if (changed) rev++
+            }
+        }
     }
 }
 

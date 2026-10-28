@@ -21,6 +21,7 @@ import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import app.flipscan.scan.Sidecar
 import java.io.File
 
 /** Review captured pages: reorder with the arrows, delete with ✕, add more, or save. */
@@ -44,7 +45,7 @@ fun PagesScreen(pages: SnapshotStateList<File>, onAddMore: () -> Unit, onSave: (
                     Text("Page ${i + 1}", Modifier.weight(1f).padding(start = 12.dp))
                     TextButton(enabled = i > 0, onClick = { move(pages, i, i - 1) }) { Text("↑") }
                     TextButton(enabled = i < pages.size - 1, onClick = { move(pages, i, i + 1) }) { Text("↓") }
-                    TextButton(onClick = { pages.removeAt(i).delete() }) { Text("✕") }
+                    TextButton(onClick = { Sidecar.deleteAll(pages.removeAt(i)) }) { Text("✕") }
                 }
             }
         }

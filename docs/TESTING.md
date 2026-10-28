@@ -24,3 +24,8 @@
 - Developer options > Profile GPU rendering: the slot animation should stay under the 16 ms line.
 - Layout Inspector / Compose recomposition counts: `DoubleSideContent` must not recompose on every camera frame (only `LiveStatus` should).
 - Try an A4 export with filters on a 3 GB RAM phone; PDF export of 10+ regular pages is the heaviest case.
+
+## Crop / rotate
+- Result screen: tap Crop on Front, drag the corners (green corner = top-left of the result), Apply. Page and preview update.
+- Rotate (↻) a card: it should become an upright card on the sheet, not stretched.
+- Scans made before this version have no stored original: Crop shows a message there; rotate still works.

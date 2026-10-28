@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Matrix
+import app.flipscan.scan.Sidecar
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -37,16 +38,23 @@ object ScanStore {
         val d = dir(ctx, id).apply { mkdirs() }
         val names = files.mapIndexed { i, f ->
             val target = File(d, "page_$i.jpg")
-            if (!f.renameTo(target)) {
-                f.copyTo(target, overwrite = true)
-                f.delete()
-            }
+            moveFile(f, target)
+            // Keep the original photo and crop corners so the page can be edited later.
+            if (Sidecar.orig(f).exists()) moveFile(Sidecar.orig(f), Sidecar.orig(target))
+            if (Sidecar.quad(f).exists()) moveFile(Sidecar.quad(f), Sidecar.quad(target))
             target.name
         }
         val now = System.currentTimeMillis()
         val scan = Scan(id, defaultName(now, mode), mode, now, names)
         writeMeta(ctx, scan)
         return scan
+    }
+
+    private fun moveFile(from: File, to: File) {
+        if (!from.renameTo(to)) {
+            from.copyTo(to, overwrite = true)
+            from.delete()
+        }
     }
 
     fun get(ctx: Context, id: String): Scan? = readMeta(metaFile(ctx, id))
