@@ -12,6 +12,7 @@
     <application
         android:name=".FlipScanApp"
         android:allowBackup="false"
+        android:icon="@drawable/ic_launcher"
         android:label="FlipScan"
         android:theme="@style/Theme.FlipScan">
         <provider

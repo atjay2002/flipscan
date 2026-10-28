@@ -38,12 +38,9 @@ class FrameAnalyzer(
                 val quad = Detector.findQuad(gray, cardMode)
                 val sharp = Detector.sharpness(gray)
                 val glare = if (quad != null) Detector.glareFraction(gray, quad) else 0.0
-                onResult(
-                    LiveResult(
-                        quad, sharp < Thresholds.BLUR_MIN, glare > Thresholds.GLARE_MAX,
-                        gray.cols(), gray.rows()
-                    )
-                )
+                val blurry = sharp < Thresholds.BLUR_MIN
+                val glaring = glare > Thresholds.GLARE_MAX
+                onResult(LiveResult(quad, blurry, glaring, gray.cols(), gray.rows()))
             } finally {
                 gray.release()
             }
