@@ -13,9 +13,11 @@ Scan **both sides** of a card (Aadhaar, PAN, driving licence, voter ID, college 
 - **Flash / torch**: continuous torch toggle on both camera screens, driven by CameraX `cameraControl.enableTorch`. The button mirrors the camera's real `TorchState`, and is disabled with an explanation when the camera has no flash unit.
 - **Output**: A4 / A5 / Letter / custom; stacked or side by side; margins, cut line, real size or fit; filters (original, grayscale, B&W, magic color); PDF / JPG / PNG; compress to 200 KB / 500 KB / 1 MB.
 - **Orientation**: page orientation Auto / Portrait / Landscape, and a Rotate button per page (cards stay correctly shaped when rotated).
-- **Per-page edit**: Rotate and manual Crop (drag 4 corners, perspective corrected) for every page. The original photo is kept, downscaled, in app-private storage so a crop can be redone.
+- **Per-page edit**: Rotate and manual Crop (drag 4 corners, perspective corrected) for every page. The original photo is kept, downscaled, in app-private storage so a crop can be redone. While you drag a corner, a loupe (2.4x, crosshair, drawn from the same in-memory bitmap) shows exactly where it will land.
 - **Design**: custom Material 3 theme (indigo/teal, light and dark), reusable components, hand-drawn icons, short purposeful animations that follow the system "remove animations" setting. Camera screens stay dark for preview contrast.
-- **Save and share**: Downloads/FlipScan via MediaStore, or the system share sheet. Recent scans with rename, delete, share.
+- **Saved scans**: tap a scan for Open / Edit / Rename / Share / Move / Delete. Open shows the exact PDF or image already saved to Downloads (no re-export); if there is none yet it offers "Save & open". Names are editable, and the export file name is chosen separately (with a live preview) and never overwrites an existing file.
+- **Folders**: create, rename and delete folders, move scans in and out from a scan's menu, with per-folder counts. Folder membership is metadata only — deleting a folder never deletes a scan or its files.
+- **Save and share**: Downloads/FlipScan via MediaStore, or the system share sheet.
 
 ## Screenshots
 Add yours to `docs/screenshots/` (none are committed yet).
@@ -69,7 +71,7 @@ supports (`arm64-v8a`, `armeabi-v7a`; `x86_64` only in debug).
 - `ui/`: Compose screens, theme tokens, shared components, custom icons
 
 ## Known limitations
-- Portrait only. The 0.3.0 UI redesign, flash control and release build compile and pass lint, but have not been exercised on a physical device yet: see `docs/TESTING.md` for the test and profiling checklist.
+- Portrait only. The 0.3.0 UI redesign and the 0.4.0 crop loupe, folders, rename and Open/Edit flows compile and pass lint, but have not been exercised on a physical device yet: see `docs/TESTING.md` for the test and profiling checklist.
 - PdfDocument stores images losslessly, so PDF size limits are met by lowering resolution.
 - Blur/glare thresholds are first guesses and need tuning on real phones.
 - Not built yet: Aadhaar masking, watermark, app lock, Tamil/Hindi.

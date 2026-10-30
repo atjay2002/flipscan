@@ -205,3 +205,49 @@ fun BrandMark(modifier: Modifier = Modifier, tint: Color = Color.White) {
         )
     }
 }
+
+/** Folder glyph for the collections row and the "Move to folder" action. */
+@Composable
+fun FolderIcon(modifier: Modifier = Modifier, color: Color, label: String? = null) {
+    Canvas(modifier.iconLabel(label)) {
+        val w = size.width
+        val h = size.height
+        val stroke = (w * 0.085f).coerceAtLeast(1.5.dp.toPx())
+        val path = Path().apply {
+            moveTo(w * 0.06f, h * 0.24f)
+            lineTo(w * 0.06f, h * 0.86f)
+            lineTo(w * 0.94f, h * 0.86f)
+            lineTo(w * 0.94f, h * 0.30f)
+            lineTo(w * 0.46f, h * 0.30f)
+            lineTo(w * 0.38f, h * 0.18f)
+            lineTo(w * 0.06f, h * 0.18f)
+            close()
+        }
+        drawPath(path, color, style = Stroke(width = stroke, join = StrokeJoin.Round, cap = StrokeCap.Round))
+    }
+}
+
+/** "Open in another app": a page with an arrow leaving it. */
+@Composable
+fun OpenIcon(modifier: Modifier = Modifier, color: Color, label: String? = null) {
+    Canvas(modifier.iconLabel(label)) {
+        val w = size.width
+        val h = size.height
+        val stroke = (w * 0.085f).coerceAtLeast(1.5.dp.toPx())
+        val page = Path().apply {
+            moveTo(w * 0.52f, h * 0.10f)
+            lineTo(w * 0.12f, h * 0.10f)
+            lineTo(w * 0.12f, h * 0.90f)
+            lineTo(w * 0.88f, h * 0.90f)
+            lineTo(w * 0.88f, h * 0.52f)
+        }
+        drawPath(page, color, style = Stroke(width = stroke, join = StrokeJoin.Round, cap = StrokeCap.Round))
+        drawLine(color, Offset(w * 0.50f, h * 0.50f), Offset(w * 0.92f, h * 0.08f), strokeWidth = stroke, cap = StrokeCap.Round)
+        val head = Path().apply {
+            moveTo(w * 0.60f, h * 0.08f)
+            lineTo(w * 0.92f, h * 0.08f)
+            lineTo(w * 0.92f, h * 0.40f)
+        }
+        drawPath(head, color, style = Stroke(width = stroke, join = StrokeJoin.Round, cap = StrokeCap.Round))
+    }
+}

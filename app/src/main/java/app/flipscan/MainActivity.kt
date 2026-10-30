@@ -33,6 +33,7 @@ import app.flipscan.export.Exporter
 import app.flipscan.ui.BusyOverlay
 import app.flipscan.ui.DoubleSideScreen
 import app.flipscan.ui.FlipScanTheme
+import app.flipscan.ui.FolderScreen
 import app.flipscan.ui.HomeScreen
 import app.flipscan.ui.PagesScreen
 import app.flipscan.ui.RegularScreen
@@ -48,7 +49,9 @@ sealed interface Screen {
     data object DoubleSide : Screen
     data object Regular : Screen
     data object Pages : Screen
-    data class Result(val scanId: String) : Screen
+    data class Folder(val folderId: String) : Screen
+    /** [fromFolder] is where Back returns to, so editing inside a folder does not drop to Home. */
+    data class Result(val scanId: String, val fromFolder: String? = null) : Screen
 }
 
 class MainActivity : ComponentActivity() {
@@ -88,7 +91,13 @@ private fun App() {
                 Screen.Home -> HomeScreen(
                     onDoubleSide = { Work.clear(ctx); screen = Screen.DoubleSide },
                     onRegular = { Work.clear(ctx); regularPages.clear(); screen = Screen.Regular },
-                    onOpen = { screen = Screen.Result(it.id) }
+                    onEdit = { screen = Screen.Result(it.id) },
+                    onOpenFolder = { screen = Screen.Folder(it.id) }
+                )
+                is Screen.Folder -> FolderScreen(
+                    folderId = current.folderId,
+                    onBack = { screen = Screen.Home },
+                    onEdit = { screen = Screen.Result(it.id, fromFolder = current.folderId) }
                 )
                 Screen.DoubleSide -> DoubleSideScreen(
                     onBack = { screen = Screen.Home },
@@ -124,7 +133,12 @@ private fun App() {
                         }
                     }
                 )
-                is Screen.Result -> ResultScreen(current.scanId, onBack = { screen = Screen.Home })
+                is Screen.Result -> ResultScreen(
+                    current.scanId,
+                    onBack = {
+                        screen = current.fromFolder?.let { Screen.Folder(it) } ?: Screen.Home
+                    }
+                )
             }
         }
 
@@ -150,7 +164,7 @@ private suspend fun finishScan(ctx: Context, mode: Mode, files: List<File>): Sca
 /** Navigation depth, used to decide the direction of the screen transition. */
 private fun depth(s: Screen): Int = when (s) {
     Screen.Home -> 0
-    Screen.DoubleSide, Screen.Regular -> 1
+    Screen.DoubleSide, Screen.Regular, is Screen.Folder -> 1
     Screen.Pages -> 2
     is Screen.Result -> 3
 }

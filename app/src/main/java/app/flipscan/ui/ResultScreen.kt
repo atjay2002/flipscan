@@ -42,6 +42,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
@@ -63,7 +64,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -84,9 +84,11 @@ import app.flipscan.data.ExportSettings
 import app.flipscan.data.Filter
 import app.flipscan.data.Format
 import app.flipscan.data.Mode
+import app.flipscan.data.Naming
 import app.flipscan.data.Orientation
 import app.flipscan.data.PageEditor
 import app.flipscan.data.Paper
+import app.flipscan.data.SavedExport
 import app.flipscan.data.Scan
 import app.flipscan.data.ScanStore
 import app.flipscan.data.SettingsStore
@@ -102,20 +104,22 @@ private data class ExportFeedback(val ok: Boolean, val title: String, val body: 
 @Composable
 fun ResultScreen(scanId: String, onBack: () -> Unit) {
     val ctx = LocalContext.current
-    val scan by produceState<Scan?>(null, scanId) { value = withContext(Dispatchers.IO) { ScanStore.get(ctx, scanId) } }
+    var scan by remember(scanId) { mutableStateOf<Scan?>(null) }
     BackHandler(onBack = onBack)
+    LaunchedEffect(scanId) { scan = withContext(Dispatchers.IO) { ScanStore.get(ctx, scanId) } }
     val s = scan
     if (s == null) {
         Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background), contentAlignment = Alignment.Center) {
             CircularProgressIndicator()
         }
     } else {
-        ResultContent(s, onBack)
+        // The scan is hoisted here so a rename survives recomposition of the whole screen.
+        ResultContent(s, onBack, onScanChanged = { scan = it })
     }
 }
 
 @Composable
-private fun ResultContent(scan: Scan, onBack: () -> Unit) {
+private fun ResultContent(scan: Scan, onBack: () -> Unit, onScanChanged: (Scan) -> Unit) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
     var settings by remember { mutableStateOf(SettingsStore.load(ctx)) }
@@ -125,6 +129,10 @@ private fun ResultContent(scan: Scan, onBack: () -> Unit) {
     var rev by remember { mutableIntStateOf(0) } // bumps after an edit to rebuild the preview
     var feedback by remember { mutableStateOf<ExportFeedback?>(null) }
     var leaving by remember { mutableStateOf(false) }
+    var renaming by remember { mutableStateOf(false) }
+    // Name of the file this screen writes. Starts as the scan name and is remembered per scan,
+    // so switching format (PDF -> JPG) keeps whatever the user typed.
+    var exportName by remember(scan.id) { mutableStateOf(scan.name) }
 
     fun update(n: ExportSettings) {
         settings = n
@@ -152,24 +160,35 @@ private fun ResultContent(scan: Scan, onBack: () -> Unit) {
             feedback = null
             val r = withContext(Dispatchers.IO) {
                 runCatching {
-                    val res = Exporter.render(ctx, scan, settings)
-                    Downloads.save(ctx, res.files) // reports success only after the copy finishes
-                    res
+                    val res = Exporter.render(ctx, scan, settings, exportName)
+                    // Downloads never overwrites; it comes back with the names actually written.
+                    val saved = Downloads.save(ctx, res.files)
+                    var updated = scan
+                    val now = System.currentTimeMillis()
+                    saved.forEach { s ->
+                        updated = ScanStore.addExport(ctx, updated, SavedExport(s.name, s.uri, s.mime, now))
+                    }
+                    res to (saved to updated)
                 }
             }
             busy = null
             feedback = r.fold(
-                { res ->
+                { (res, written) ->
+                    val (saved, updated) = written
+                    onScanChanged(updated) // "Open" on Home can now show this exact file
                     val kb = res.files.sumOf { f -> f.length() } / 1024
+                    // Long JPG exports produce many files; list a few so the banner stays compact.
+                    val names = saved.take(3).joinToString("\n") { it.name } +
+                        if (saved.size > 3) "\n+${saved.size - 3} more" else ""
                     ExportFeedback(
                         ok = true,
                         title = "Saved to Downloads/FlipScan",
-                        body = "${res.files.size} file(s) · $kb KB" + (res.note?.let { "\n$it" } ?: "")
+                        body = names + "\n${res.files.size} file(s) · $kb KB" + (res.note?.let { "\n$it" } ?: "")
                     )
                 },
                 { err -> ExportFeedback(false, "Export failed", err.message ?: "Unknown error") }
             )
-            if (r.isSuccess) leaveAfter(1200)
+            if (r.isSuccess) leaveAfter(1400)
         }
     }
 
@@ -177,7 +196,7 @@ private fun ResultContent(scan: Scan, onBack: () -> Unit) {
         scope.launch {
             busy = "Preparing…"
             feedback = null
-            val r = withContext(Dispatchers.IO) { runCatching { Exporter.render(ctx, scan, settings).files } }
+            val r = withContext(Dispatchers.IO) { runCatching { Exporter.render(ctx, scan, settings, exportName).files } }
             busy = null
             r.onSuccess { files ->
                 val sent = runCatching { Share.send(ctx, files) }
@@ -213,7 +232,15 @@ private fun ResultContent(scan: Scan, onBack: () -> Unit) {
                 title = scan.name,
                 subtitle = (if (scan.mode == Mode.CARDS) "ID card" else "Document") + " · ${scan.pages.size} page(s)",
                 onBack = onBack
-            )
+            ) {
+                IconButton(onClick = { renaming = true }, enabled = busy == null && !leaving) {
+                    Icon(
+                        Icons.Filled.Edit,
+                        contentDescription = "Rename scan",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
 
             PreviewStrip(scan, previews, Modifier.padding(horizontal = 16.dp))
 
@@ -240,7 +267,7 @@ private fun ResultContent(scan: Scan, onBack: () -> Unit) {
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 PaperPanel(scan, settings, ::update)
-                OutputPanel(settings, ::update)
+                OutputPanel(scan, settings, exportName, { exportName = it }, ::update)
             }
 
             AnimatedVisibility(
@@ -294,6 +321,19 @@ private fun ResultContent(scan: Scan, onBack: () -> Unit) {
                 cropIndex = null
                 if (changed) rev++
             }
+        }
+
+        if (renaming) {
+            ScanRenameDialog(
+                scan = scan,
+                onDismiss = { renaming = false },
+                onRenamed = { updated ->
+                    renaming = false
+                    // Keep the export-file field in step while the user has not typed their own name.
+                    if (exportName == scan.name) exportName = updated.name
+                    onScanChanged(updated)
+                }
+            )
         }
     }
 }
@@ -455,7 +495,13 @@ private fun PaperPanel(scan: Scan, s: ExportSettings, update: (ExportSettings) -
 }
 
 @Composable
-private fun OutputPanel(s: ExportSettings, update: (ExportSettings) -> Unit) {
+private fun OutputPanel(
+    scan: Scan,
+    s: ExportSettings,
+    exportName: String,
+    onExportName: (String) -> Unit,
+    update: (ExportSettings) -> Unit
+) {
     Panel {
         SectionLabel("Filter")
         Row(
@@ -490,6 +536,30 @@ private fun OutputPanel(s: ExportSettings, update: (ExportSettings) -> Unit) {
             if (s.targetKb == 0) "Full resolution." else "Resolution and JPEG quality are reduced only as much as needed to fit.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(Modifier.height(16.dp))
+        SectionLabel("File name")
+        OutlinedTextField(
+            value = exportName,
+            onValueChange = onExportName,
+            singleLine = true,
+            label = { Text("Export file name") },
+            supportingText = {
+                Text(
+                    if (Naming.isBlank(exportName)) {
+                        "Leave empty to use the scan name: ${Naming.preview("", s.format.ext, scan.name)}"
+                    } else {
+                        "Saves as ${Naming.preview(exportName, s.format.ext, scan.name)}"
+                    }
+                )
+            },
+            modifier = Modifier.fillMaxWidth()
+        )
+        Text(
+            "Existing files are never overwritten — a number is added instead.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 6.dp)
         )
     }
 }

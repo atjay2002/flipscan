@@ -1,15 +1,11 @@
 package app.flipscan.ui
 
 import android.widget.Toast
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -23,23 +19,15 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.KeyboardArrowRight
-import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.Share
-import androidx.compose.material3.AlertDialog
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -60,46 +48,43 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import app.flipscan.data.Mode
+import app.flipscan.data.Folder
+import app.flipscan.data.FolderStore
 import app.flipscan.data.Scan
 import app.flipscan.data.ScanStore
-import app.flipscan.data.SettingsStore
-import app.flipscan.export.Exporter
-import app.flipscan.export.Share
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.text.DateFormat
-import java.util.Date
 
 @Composable
-fun HomeScreen(onDoubleSide: () -> Unit, onRegular: () -> Unit, onOpen: (Scan) -> Unit) {
+fun HomeScreen(
+    onDoubleSide: () -> Unit,
+    onRegular: () -> Unit,
+    onEdit: (Scan) -> Unit,
+    onOpenFolder: (Folder) -> Unit
+) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
     var scans by remember { mutableStateOf<List<Scan>>(emptyList()) }
+    var folders by remember { mutableStateOf<List<Folder>>(emptyList()) }
     var loaded by remember { mutableStateOf(false) }
     var reload by remember { mutableIntStateOf(0) }
-    var renaming by remember { mutableStateOf<Scan?>(null) }
-    var deleting by remember { mutableStateOf<Scan?>(null) }
-    var busy by remember { mutableStateOf<String?>(null) }
 
-    // Reads small JSON files on a background thread; runs again whenever Home is shown.
+    var actionsFor by remember { mutableStateOf<Scan?>(null) }
+    var folderMenu by remember { mutableStateOf<Folder?>(null) }
+    var creatingFolder by remember { mutableStateOf(false) }
+    var renamingFolder by remember { mutableStateOf<Folder?>(null) }
+    var deletingFolder by remember { mutableStateOf<Folder?>(null) }
+
+    // Reads small JSON files on a background thread; runs again whenever Home is shown or data changed.
     LaunchedEffect(reload) {
-        scans = withContext(Dispatchers.IO) { ScanStore.list(ctx) }
+        val data = withContext(Dispatchers.IO) { ScanStore.list(ctx) to FolderStore.list(ctx) }
+        scans = data.first
+        folders = data.second
         loaded = true
     }
 
-    fun share(scan: Scan) {
-        scope.launch {
-            busy = "Preparing…"
-            val r = withContext(Dispatchers.IO) {
-                runCatching { Exporter.render(ctx, scan, SettingsStore.load(ctx)).files }
-            }
-            busy = null
-            r.onSuccess { Share.send(ctx, it) }
-                .onFailure { Toast.makeText(ctx, "Could not share: ${it.message}", Toast.LENGTH_LONG).show() }
-        }
-    }
+    fun countIn(folderId: String) = scans.count { it.folderId == folderId }
 
     // Soft entrance: the whole page fades and rises once.
     val enter = remember { Animatable(0f) }
@@ -136,6 +121,44 @@ fun HomeScreen(onDoubleSide: () -> Unit, onRegular: () -> Unit, onOpen: (Scan) -
                 }
             }
 
+            item(key = "foldersHeader") {
+                Row(
+                    Modifier.fillMaxWidth().padding(top = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Folders", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                    if (folders.isNotEmpty()) CountBadge("${folders.size}")
+                    TextButton(onClick = { creatingFolder = true }) { Text("New folder") }
+                }
+            }
+
+            if (folders.isEmpty()) {
+                item(key = "foldersEmpty") {
+                    Text(
+                        "Group scans into folders — a project, a person, a month. Move any scan into one " +
+                            "from its ⋮ menu.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            } else {
+                item(key = "folders") {
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        contentPadding = PaddingValues(end = 4.dp)
+                    ) {
+                        items(folders, key = { it.id }) { folder ->
+                            FolderCard(
+                                folder = folder,
+                                scanCount = countIn(folder.id),
+                                onOpen = { onOpenFolder(folder) },
+                                onActions = { folderMenu = folder }
+                            )
+                        }
+                    }
+                }
+            }
+
             item(key = "recentHeader") {
                 Row(
                     Modifier.fillMaxWidth().padding(top = 14.dp, bottom = 2.dp),
@@ -156,17 +179,15 @@ fun HomeScreen(onDoubleSide: () -> Unit, onRegular: () -> Unit, onOpen: (Scan) -
                 item(key = "empty") {
                     EmptyState(
                         "Nothing here yet",
-                        "Scans you save stay on this phone and appear here, ready to edit or export again."
+                        "Scans you save stay on this phone and appear here, ready to open, edit or export again."
                     )
                 }
             } else {
                 items(scans, key = { it.id }) { scan ->
                     ScanRow(
                         scan = scan,
-                        onOpen = { onOpen(scan) },
-                        onShare = { share(scan) },
-                        onRename = { renaming = scan },
-                        onDelete = { deleting = scan }
+                        folderName = folders.firstOrNull { it.id == scan.folderId }?.name,
+                        onActions = { actionsFor = scan }
                     )
                 }
             }
@@ -181,58 +202,74 @@ fun HomeScreen(onDoubleSide: () -> Unit, onRegular: () -> Unit, onOpen: (Scan) -
             }
         }
 
-        AnimatedVisibility(
-            visible = busy != null,
-            enter = fadeIn(tween(motionMs(140))),
-            modifier = Modifier.fillMaxSize()
-        ) {
-            BusyOverlay(busy ?: "", Modifier.fillMaxSize())
-        }
-    }
-
-    renaming?.let { s ->
-        var text by remember(s.id) { mutableStateOf(s.name) }
-        AlertDialog(
-            onDismissRequest = { renaming = null },
-            shape = MaterialTheme.shapes.large,
-            title = { Text("Rename scan") },
-            text = {
-                OutlinedTextField(
-                    value = text,
-                    onValueChange = { text = it },
-                    singleLine = true,
-                    label = { Text("Name") }
-                )
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    scope.launch {
-                        withContext(Dispatchers.IO) { ScanStore.rename(ctx, s, text) }
-                        renaming = null
-                        reload++
-                    }
-                }) { Text("Save") }
-            },
-            dismissButton = { TextButton(onClick = { renaming = null }) { Text("Cancel") } }
+        ScanActionsHost(
+            scan = actionsFor,
+            folders = folders,
+            onDismiss = { actionsFor = null },
+            onEdit = { s -> actionsFor = null; onEdit(s) },
+            onChanged = { reload++ }
         )
     }
 
-    deleting?.let { s ->
-        AlertDialog(
-            onDismissRequest = { deleting = null },
-            shape = MaterialTheme.shapes.large,
-            title = { Text("Delete \"${s.name}\"?") },
-            text = { Text("This removes the scan from the app. Files you already saved to Downloads are not touched.") },
-            confirmButton = {
-                TextButton(onClick = {
-                    scope.launch {
-                        withContext(Dispatchers.IO) { ScanStore.delete(ctx, s) }
-                        deleting = null
-                        reload++
+    if (creatingFolder) {
+        FolderNameDialog(
+            title = "New folder",
+            initial = "",
+            confirmLabel = "Create",
+            onDismiss = { creatingFolder = false },
+            onConfirm = { name ->
+                creatingFolder = false
+                scope.launch {
+                    val folder = withContext(Dispatchers.IO) { FolderStore.create(ctx, name) }
+                    reload++
+                    if (folder != null) Toast.makeText(ctx, "Folder \"${folder.name}\" created", Toast.LENGTH_SHORT).show()
+                }
+            }
+        )
+    }
+
+    renamingFolder?.let { folder ->
+        FolderNameDialog(
+            title = "Rename folder",
+            initial = folder.name,
+            confirmLabel = "Save",
+            onDismiss = { renamingFolder = null },
+            onConfirm = { name ->
+                renamingFolder = null
+                scope.launch {
+                    withContext(Dispatchers.IO) { FolderStore.rename(ctx, folder.id, name) }
+                    reload++
+                }
+            }
+        )
+    }
+
+    deletingFolder?.let { folder ->
+        DeleteFolderDialog(
+            folder = folder,
+            scanCount = countIn(folder.id),
+            onDismiss = { deletingFolder = null },
+            onConfirm = {
+                deletingFolder = null
+                scope.launch {
+                    withContext(Dispatchers.IO) {
+                        // Scans move back to the main collection; nothing on disk is deleted.
+                        ScanStore.clearFolder(ctx, folder.id)
+                        FolderStore.delete(ctx, folder.id)
                     }
-                }) { Text("Delete") }
-            },
-            dismissButton = { TextButton(onClick = { deleting = null }) { Text("Cancel") } }
+                    reload++
+                }
+            }
+        )
+    }
+
+    folderMenu?.let { folder ->
+        FolderActionsSheet(
+            folder = folder,
+            scanCount = countIn(folder.id),
+            onDismiss = { folderMenu = null },
+            onRename = { folderMenu = null; renamingFolder = folder },
+            onDelete = { folderMenu = null; deletingFolder = folder }
         )
     }
 }
@@ -318,84 +355,10 @@ private fun ActionCard(
                 Text(subtitle, style = MaterialTheme.typography.bodySmall, color = sub, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             Icon(
-                Icons.Filled.KeyboardArrowRight,
+                Icons.AutoMirrored.Filled.KeyboardArrowRight,
                 contentDescription = null,
                 tint = if (filled) fg.copy(alpha = 0.7f) else MaterialTheme.colorScheme.onSurfaceVariant
             )
-        }
-    }
-}
-
-@Composable
-private fun ScanRow(
-    scan: Scan,
-    onOpen: () -> Unit,
-    onShare: () -> Unit,
-    onRename: () -> Unit,
-    onDelete: () -> Unit
-) {
-    val ctx = LocalContext.current
-    var menu by remember { mutableStateOf(false) }
-    Surface(
-        modifier = Modifier.fillMaxWidth().pressable(onOpen),
-        shape = MaterialTheme.shapes.medium,
-        color = MaterialTheme.colorScheme.surface,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
-    ) {
-        Row(Modifier.padding(9.dp), verticalAlignment = Alignment.CenterVertically) {
-            PageThumb(
-                ScanStore.thumbFile(ctx, scan.id),
-                Modifier.size(width = 52.dp, height = 66.dp).clip(RoundedCornerShape(10.dp)),
-                maxSide = 240
-            )
-            Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
-                Text(scan.name, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                val date = DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT).format(Date(scan.createdAt))
-                Text(
-                    "$date · ${scan.pages.size} page(s)",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1
-                )
-                Text(
-                    if (scan.mode == Mode.CARDS) "ID CARD" else "DOCUMENT",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = if (scan.mode == Mode.CARDS) {
-                        MaterialTheme.colorScheme.primary
-                    } else if (isSystemInDarkTheme()) {
-                        Color(0xFF5EEAD4)
-                    } else {
-                        Color(0xFF0F766E)
-                    },
-                    modifier = Modifier.padding(top = 3.dp)
-                )
-            }
-            Box {
-                IconButton(onClick = { menu = true }) {
-                    Icon(
-                        Icons.Filled.MoreVert,
-                        contentDescription = "Scan options",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                    DropdownMenuItem(
-                        text = { Text("Share") },
-                        leadingIcon = { Icon(Icons.Filled.Share, contentDescription = null) },
-                        onClick = { menu = false; onShare() }
-                    )
-                    DropdownMenuItem(
-                        text = { Text("Rename") },
-                        leadingIcon = { Icon(Icons.Filled.Edit, contentDescription = null) },
-                        onClick = { menu = false; onRename() }
-                    )
-                    DropdownMenuItem(
-                        text = { Text("Delete") },
-                        leadingIcon = { Icon(Icons.Filled.Delete, contentDescription = null) },
-                        onClick = { menu = false; onDelete() }
-                    )
-                }
-            }
         }
     }
 }

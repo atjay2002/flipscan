@@ -2,4 +2,6 @@
 <paths>
     <!-- Exports are built in cache/exports and shared from there through FileProvider. -->
     <cache-path name="exports" path="exports/" />
+    <!-- Android 7-9 saves into the public folder, so "Open" needs a content URI for it too. -->
+    <external-path name="downloads" path="Download/FlipScan/" />
 </paths>

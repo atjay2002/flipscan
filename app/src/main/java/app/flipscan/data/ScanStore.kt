@@ -15,13 +15,26 @@ import java.util.UUID
 
 enum class Mode { CARDS, DOCUMENT }
 
-/** A saved scan. Its pages live in app-private storage: filesDir/scans/<id>/. */
+/** A file this scan produced in Downloads/FlipScan, kept so "Open" can show the real export. */
+data class SavedExport(
+    val name: String,
+    val uri: String,
+    val mime: String,
+    val at: Long
+)
+
+/**
+ * A saved scan. Its pages live in app-private storage: filesDir/scans/<id>/.
+ * [folderId] is null for the main collection; membership is metadata only, nothing moves on disk.
+ */
 data class Scan(
     val id: String,
     val name: String,
     val mode: Mode,
     val createdAt: Long,
-    val pages: List<String>
+    val pages: List<String>,
+    val folderId: String? = null,
+    val exports: List<SavedExport> = emptyList()
 )
 
 object ScanStore {
@@ -65,9 +78,35 @@ object ScanStore {
             .mapNotNull { readMeta(File(it, "meta.json")) }
             .sortedByDescending { it.createdAt }
 
-    fun rename(ctx: Context, scan: Scan, newName: String) {
-        val name = newName.trim()
-        if (name.isNotEmpty()) writeMeta(ctx, scan.copy(name = name))
+    /** Renames the scan itself (what the app shows). Returns the saved scan. */
+    fun rename(ctx: Context, scan: Scan, newName: String): Scan? {
+        val name = Naming.sanitize(newName, "")
+        if (name.isEmpty()) return null
+        val updated = scan.copy(name = name)
+        writeMeta(ctx, updated)
+        return updated
+    }
+
+    /** Puts the scan in [folderId], or back into the main collection when null. */
+    fun setFolder(ctx: Context, scan: Scan, folderId: String?): Scan {
+        val updated = scan.copy(folderId = folderId)
+        writeMeta(ctx, updated)
+        return updated
+    }
+
+    /** Empties a folder without touching the scans or their files. Returns how many scans moved out. */
+    fun clearFolder(ctx: Context, folderId: String): Int {
+        val members = list(ctx).filter { it.folderId == folderId }
+        members.forEach { writeMeta(ctx, it.copy(folderId = null)) }
+        return members.size
+    }
+
+    /** Remembers a file the scan wrote to Downloads. Newest first, at most 8 entries. */
+    fun addExport(ctx: Context, scan: Scan, saved: SavedExport): Scan {
+        val list = (listOf(saved) + scan.exports).distinctBy { it.uri }.take(8)
+        val updated = scan.copy(exports = list)
+        writeMeta(ctx, updated)
+        return updated
     }
 
     /** Rotates one stored page 90 degrees clockwise (re-encodes the JPEG in place). */
@@ -96,7 +135,28 @@ object ScanStore {
             .put("mode", s.mode.name)
             .put("createdAt", s.createdAt)
             .put("pages", JSONArray(s.pages))
-        metaFile(ctx, s.id).writeText(json.toString())
+        s.folderId?.let { json.put("folderId", it) }
+        if (s.exports.isNotEmpty()) {
+            json.put("exports", JSONArray().apply {
+                s.exports.forEach {
+                    put(
+                        JSONObject()
+                            .put("name", it.name)
+                            .put("uri", it.uri)
+                            .put("mime", it.mime)
+                            .put("at", it.at)
+                    )
+                }
+            })
+        }
+        // Write then rename, so a crash mid-write cannot leave a truncated meta.json.
+        val target = metaFile(ctx, s.id)
+        val tmp = File(target.parentFile, "meta.json.tmp")
+        tmp.writeText(json.toString())
+        if (!tmp.renameTo(target)) {
+            target.writeText(json.toString())
+            tmp.delete()
+        }
     }
 
     private fun readMeta(f: File): Scan? {
@@ -105,11 +165,30 @@ object ScanStore {
             val j = JSONObject(f.readText())
             val arr = j.getJSONArray("pages")
             Scan(
-                j.getString("id"), j.getString("name"), Mode.valueOf(j.getString("mode")),
-                j.getLong("createdAt"), (0 until arr.length()).map { arr.getString(it) }
+                id = j.getString("id"),
+                name = j.getString("name"),
+                mode = Mode.valueOf(j.getString("mode")),
+                createdAt = j.getLong("createdAt"),
+                pages = (0 until arr.length()).map { arr.getString(it) },
+                folderId = j.optString("folderId", "").takeIf { it.isNotEmpty() },
+                exports = parseExports(j.optJSONArray("exports"))
             )
         } catch (e: Exception) {
             null
+        }
+    }
+
+    private fun parseExports(arr: JSONArray?): List<SavedExport> {
+        if (arr == null) return emptyList()
+        return (0 until arr.length()).mapNotNull { i ->
+            val o = arr.optJSONObject(i) ?: return@mapNotNull null
+            val uri = o.optString("uri").takeIf { it.isNotEmpty() } ?: return@mapNotNull null
+            SavedExport(
+                name = o.optString("name"),
+                uri = uri,
+                mime = o.optString("mime", "application/pdf"),
+                at = o.optLong("at", 0L)
+            )
         }
     }
 }

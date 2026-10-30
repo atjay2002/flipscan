@@ -40,6 +40,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathFillType
@@ -51,6 +52,8 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import app.flipscan.data.Mode
 import app.flipscan.data.PageEditor
@@ -205,6 +208,66 @@ fun CropScreen(scan: Scan, index: Int, onClose: (changed: Boolean) -> Unit) {
                         drawCircle(Color.Black.copy(alpha = 0.25f), radius = (if (active) 20.dp else 17.dp).toPx(), center = p)
                         drawCircle(Color.White, radius = (if (active) 14.dp else 12.dp).toPx(), center = p)
                         drawCircle(if (i == 0) Accent else Color(0xFF6366F1), radius = (if (active) 9.dp else 7.dp).toPx(), center = p)
+                    }
+
+                    // Precision loupe: magnifies the real pixels around the corner being dragged.
+                    // It reads the already-loaded bitmap (no decode per event) and is drawn as a
+                    // clipped image, so the magnified content is the photo itself, not the overlay.
+                    val corner = pts.getOrNull(activeHandle)
+                    if (corner != null) {
+                        val r = 68.dp.toPx() // ~136 dp diameter
+                        val gapPx = 28.dp.toPx()
+                        val edge = 6.dp.toPx()
+                        var cx = corner.x
+                        var cy = corner.y - r - gapPx
+                        if (cy - r < edge) {
+                            // Not enough room above (top corners): sit beside the finger instead.
+                            cy = corner.y
+                            cx = if (corner.x < boxW / 2f) corner.x + r + gapPx else corner.x - r - gapPx
+                        }
+                        cx = cx.coerceIn(r + edge, (boxW - r - edge).coerceAtLeast(r + edge))
+                        cy = cy.coerceIn(r + edge, (boxH - r - edge).coerceAtLeast(r + edge))
+
+                        val zoom = 2.4f
+                        val half = (r / (scale * zoom)).coerceAtMost(minOf(bw, bh) / 2f)
+                        val ix = (corner.x - left) / scale
+                        val iy = (corner.y - top) / scale
+                        val sx = if (bw <= half * 2f) bw / 2f else ix.coerceIn(half, bw - half)
+                        val sy = if (bh <= half * 2f) bh / 2f else iy.coerceIn(half, bh - half)
+
+                        val circle = Path().apply {
+                            addOval(Rect(cx - r, cy - r, cx + r, cy + r))
+                        }
+                        clipPath(circle) {
+                            drawImage(
+                                image = image,
+                                srcOffset = IntOffset((sx - half).toInt(), (sy - half).toInt()),
+                                srcSize = IntSize(
+                                    (half * 2f).toInt().coerceAtLeast(1),
+                                    (half * 2f).toInt().coerceAtLeast(1)
+                                ),
+                                dstOffset = IntOffset((cx - r).toInt(), (cy - r).toInt()),
+                                dstSize = IntSize((r * 2f).toInt(), (r * 2f).toInt())
+                            )
+                            // Crosshair marks the corner inside the loupe, even when the sampled
+                            // window had to be clamped at the edge of the photo.
+                            val perPixel = r / half
+                            val crossX = cx + (ix - sx) * perPixel
+                            val crossY = cy + (iy - sy) * perPixel
+                            val line = 1.dp.toPx()
+                            drawLine(Color.Black.copy(alpha = 0.5f), Offset(crossX - r, crossY), Offset(crossX + r, crossY), strokeWidth = line * 2.4f)
+                            drawLine(Color.Black.copy(alpha = 0.5f), Offset(crossX, crossY - r), Offset(crossX, crossY + r), strokeWidth = line * 2.4f)
+                            drawLine(Color.White, Offset(crossX - r, crossY), Offset(crossX + r, crossY), strokeWidth = line)
+                            drawLine(Color.White, Offset(crossX, crossY - r), Offset(crossX, crossY + r), strokeWidth = line)
+                            drawCircle(Accent, radius = 3.5.dp.toPx(), center = Offset(crossX, crossY))
+                        }
+                        drawCircle(
+                            Color.Black.copy(alpha = 0.45f),
+                            radius = r + 2.dp.toPx(),
+                            center = Offset(cx, cy),
+                            style = Stroke(4.dp.toPx())
+                        )
+                        drawCircle(Color.White, radius = r, center = Offset(cx, cy), style = Stroke(2.dp.toPx()))
                     }
                 }
             }

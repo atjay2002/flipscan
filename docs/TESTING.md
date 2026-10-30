@@ -10,7 +10,7 @@
 7. Filters, formats (PDF/JPG/PNG), size limits (200 KB / 500 KB). Check the banner when a limit cannot be reached.
 8. Save to Downloads (Downloads/FlipScan), Share to WhatsApp/Gmail. The success banner must appear only after the copy finishes.
 9. Regular mode: capture 3+ pages, reorder, delete one, add another, Continue, export.
-10. Home: rename, delete, share from the recent list.
+10. Home: tap a scan → the action sheet lists Open, Edit, Rename, Share, Move to folder and Delete.
 11. Android 7-9 only: saving asks for storage permission.
 12. Theme: switch the system to dark mode. Every screen must stay readable (camera screens are intentionally always dark).
 
@@ -39,11 +39,43 @@
 
 ## Crop / rotate
 - Result screen: tap Crop on Front, drag the corners (green corner = top-left of the result), Apply. Page and preview update.
+- While a corner is held: a round 136 dp loupe appears above the finger (beside it for the two top corners), follows the corner, is clamped inside the editing area, shows real photo pixels at 2.4x with a crosshair, and disappears on release/cancel.
+- Drag a corner into each edge and into the opposite corner: the magnified image must clamp at the photo edge with the crosshair still on the finger point (no blank bars, no crash).
 - Rotate (↻) a card: it should become an upright card on the sheet, not stretched.
 - Scans made before this version have no stored original: Crop shows a message there; rotate still works.
-- Result screen: Save shows the "Saved to Downloads/FlipScan" banner and returns to the Home dashboard
-  after ~1.2 s; Share opens the system sheet and returns Home ~0.9 s later. A failure keeps you on the
+- Result screen: Save shows the "Saved to Downloads/FlipScan" banner (with the written file name) and returns to the Home dashboard
+  after ~1.4 s; Share opens the system sheet and returns Home ~0.9 s later. A failure keeps you on the
   page with the error banner so you can retry.
+
+## Rename / file name
+- Result screen: pencil icon → rename the scan. The header updates; Home shows the new name after Back.
+- Kill and reopen the app: the renamed name must persist.
+- Rename to spaces only, to `a/b:c*?"<>|` and to a 100+ character string: the dialog blocks empty input;
+  invalid characters are replaced by spaces and long names are shortened.
+- Export panel: the "File name" field starts with the scan name, shows a live "Saves as" preview, strips a
+  typed `.pdf`/`.jpg`/`.png` so the extension is not doubled, and an empty field falls back to the scan name.
+- Save the same name twice: the second copy becomes `name (2).ext`; nothing is overwritten.
+
+## Folders
+- Home → New folder: create two folders; they appear as tiles with scan counts; names persist after restart.
+- Create a folder with an existing name: it is stored as "Name (2)".
+- Scan menu → Move to folder: move a scan in and back to Main collection; the tile counts and the folder
+  screen follow. Recent scans keeps listing every scan (with its folder name) either way.
+- Folder screen: rename the folder from its ⋮ menu, open a scan, Edit, and Back returns to the folder.
+- Delete a non-empty folder: the dialog says the scans are kept; after deleting, the scans appear again in
+  Recent with no folder chip, and their page files still open.
+- Delete a folder from Home and from inside the folder screen: no scan and no exported file is removed.
+
+## Open vs Edit
+- Tap a scan that was never exported → Open offers "Save & open"; after confirming, the file is created and
+  the system viewer opens it, and the scan menu now shows that name under Open.
+- Tap a scan with one saved export → Open goes straight to the viewer, no banner and no re-export.
+- Export both a PDF and a JPG for one scan, then Open → the picker lists both (newest first).
+- Delete the exported file from Downloads, then Open → "Saved file is missing" with "Save again".
+- Open a scan on a phone with no PDF viewer installed: a readable message appears, the app does not crash.
+- Android 7-9: "Save & open" on a scan that was never saved asks for storage permission first (deny it:
+  a message explains why, nothing is written).
+- Verify no `file://` URI is ever passed: open a PDF via Open while the viewer app shows the URI (adb logcat).
 
 ## Motion and layout
 - Screen changes: short slide + fade, no black flash, no stutter on the camera preview.

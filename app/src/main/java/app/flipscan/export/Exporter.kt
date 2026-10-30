@@ -8,6 +8,7 @@ import app.flipscan.data.ExportSettings
 import app.flipscan.data.Filter
 import app.flipscan.data.Format
 import app.flipscan.data.Mode
+import app.flipscan.data.Naming
 import app.flipscan.data.Scan
 import app.flipscan.data.ScanStore
 import app.flipscan.data.SettingsStore
@@ -75,8 +76,8 @@ object Exporter {
     fun exportDir(ctx: Context): File =
         File(ctx.cacheDir, "exports").apply { deleteRecursively(); mkdirs() }
 
-    fun safeName(name: String): String =
-        name.replace(Regex("[^A-Za-z0-9 ._-]"), "_").trim().ifEmpty { "scan" }
+    /** Sanitises a user-visible base name; the extension is added by [render]. */
+    fun safeName(name: String): String = Naming.baseName(name, "scan")
 
     /** Small JPEG of the first sheet, shown in the recent scans list. */
     fun writeThumb(ctx: Context, scan: Scan) {
@@ -143,11 +144,14 @@ object Exporter {
         return last to false
     }
 
-    /** Writes the export into the cache folder and returns the files (ready to share or copy to Downloads). */
-    fun render(ctx: Context, scan: Scan, s: ExportSettings): Result {
+    /**
+     * Writes the export into the cache folder and returns the files (ready to share or copy to Downloads).
+     * [baseName] lets the user name this export; when null the scan name is used.
+     */
+    fun render(ctx: Context, scan: Scan, s: ExportSettings, baseName: String? = null): Result {
         val sheets = sheets(ctx, scan, s)
         val dir = exportDir(ctx)
-        val base = safeName(scan.name)
+        val base = safeName(baseName ?: scan.name)
         val dpi = baseDpi(scan)
         val target = s.targetKb * 1024
         val files = mutableListOf<File>()
