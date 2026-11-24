@@ -1,38 +1,63 @@
 package app.flipscan.data
 
-import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.Matrix
 import app.flipscan.scan.PageProcessor
 import app.flipscan.scan.Quad
 import app.flipscan.scan.Sidecar
+import java.io.File
 
-/** Per-page editing of a saved scan: crop and rotate. Heavy: call off the main thread. */
+/**
+ * Per-page editing: crop and rotate.
+ *
+ * Works on page files rather than a [Scan], so the same editor serves normal scans and the
+ * encrypted locker (which decrypts a page to a temp file, edits it, then re-encrypts it).
+ * Heavy: call off the main thread.
+ */
 object PageEditor {
-    private fun page(ctx: Context, scan: Scan, index: Int) = ScanStore.pageFiles(ctx, scan).getOrNull(index)
+    fun hasOriginal(page: File): Boolean = Sidecar.orig(page).exists()
 
-    fun hasOriginal(ctx: Context, scan: Scan, index: Int): Boolean =
-        page(ctx, scan, index)?.let { Sidecar.orig(it).exists() } ?: false
+    fun loadQuad(page: File): Quad? = Sidecar.readQuad(page)
 
-    fun loadQuad(ctx: Context, scan: Scan, index: Int): Quad? = page(ctx, scan, index)?.let { Sidecar.readQuad(it) }
-
-    /** Re-crops page [index] from the stored original using [quad]. */
-    fun applyCrop(ctx: Context, scan: Scan, index: Int, quad: Quad): Boolean {
-        val page = page(ctx, scan, index) ?: return false
+    /** Re-crops [page] from the stored original using [quad]. */
+    fun applyCrop(page: File, quad: Quad, cardMode: Boolean): Boolean {
         val orig = Sidecar.orig(page)
         if (!orig.exists()) return false
-        val ok = PageProcessor.recrop(orig, page, quad, scan.mode == Mode.CARDS)
+        val ok = PageProcessor.recrop(orig, page, quad, cardMode)
         if (ok) Sidecar.writeQuad(page, quad)
         return ok
     }
 
-    /** Rotates one page 90 degrees clockwise. */
-    fun rotate(ctx: Context, scan: Scan, index: Int) {
-        val page = page(ctx, scan, index) ?: return
+    /** Rotates one page 90° clockwise. */
+    fun rotate(page: File, cardMode: Boolean): Boolean {
         val q = Sidecar.readQuad(page)
-        if (q != null && Sidecar.orig(page).exists()) {
+        return if (q != null && Sidecar.orig(page).exists()) {
             // Cycling the corners rotates the result and keeps full quality (re-warped from the original).
-            applyCrop(ctx, scan, index, Quad(q.bl, q.tl, q.tr, q.br))
+            applyCrop(page, Quad(q.bl, q.tl, q.tr, q.br), cardMode)
         } else {
-            ScanStore.rotatePage(ctx, scan, index) // older scans without a stored original
+            rotateInPlace(page) // older scans without a stored original
+        }
+    }
+
+    /** Lossy fallback for pages saved before originals were kept. */
+    private fun rotateInPlace(page: File): Boolean {
+        val src = BitmapFactory.decodeFile(page.path) ?: return false
+        var result: Bitmap? = null
+        return try {
+            val rotated = Bitmap.createBitmap(
+                src, 0, 0, src.width, src.height,
+                Matrix().apply { postRotate(90f) }, true
+            )
+            result = rotated
+            if (rotated !== src) src.recycle()
+            page.outputStream().use { rotated.compress(Bitmap.CompressFormat.JPEG, 92, it) }
+            true
+        } catch (e: Exception) {
+            false
+        } finally {
+            if (!src.isRecycled) src.recycle()
+            result?.takeIf { it !== src && !it.isRecycled }?.recycle()
         }
     }
 }

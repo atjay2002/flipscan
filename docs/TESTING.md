@@ -47,6 +47,44 @@
   after ~1.4 s; Share opens the system sheet and returns Home ~0.9 s later. A failure keeps you on the
   page with the error banner so you can retry.
 
+## Digital Locker
+Setup: set a screen lock and enrol a fingerprint (or face) on the phone. Then Home → Digital Locker.
+
+- Gate: only a lock icon and text are visible — no document names, counts or thumbnails before unlocking.
+- Success: the system prompt appears; after a match the locker home opens. Back/cancel from the prompt keeps
+  you on the locked gate and nothing is read.
+- Failure: cancel with the back button, try a non-enrolled finger, and (careful) fail five times to see the
+  30-second lockout message. Nothing must crash and no document may appear.
+- Credential fallback: on a phone with a PIN but no biometrics the gate says the screen lock is used, and the
+  prompt's "Use PIN" path unlocks it. On a phone with no screen lock at all the gate explains and offers
+  "Open security settings"; the unlock button must not appear.
+- Backgrounding: with the locker open, press Home, then reopen the app. It returns to Home and Digital Locker
+  asks to unlock again. Repeat from the viewer and from the locker camera.
+- Session cap: unlock, sit on the locker home for 5 minutes without touching it; it locks by itself.
+- Process death: with the locker open, `adb shell am force-stop app.flipscan`, reopen. It must start locked.
+- Screenshots: while any locker screen is visible a screenshot fails or comes out blank, and the task
+  switcher preview is blank. Normal screens still allow screenshots.
+- Scan: Digital Locker → Scan sensitive document → pick Aadhaar (card) and Custom document (multi-page).
+  For a card, one side is enough: after the first capture the camera stops and "Review" is available; tap the
+  empty slot to add the other side. Each saved document appears under "My secure documents" with a thumbnail
+  and a `Type · N pages` line.
+- Separation: the same document must never appear in Recent scans, in any folder, or in Downloads/FlipScan,
+  before or after a restart. Normal (non-locker) scans still need no authentication.
+- Viewer: pages switch with the arrows and the page strip; Rotate, Crop (drag corners, apply), Rename and
+  Delete all work and survive Back → reopen and an app restart.
+- Encryption at rest (debug build): `adb shell run-as app.flipscan ls files/locker/docs/*` lists only
+  `*.enc` files. `adb shell run-as app.flipscan cat files/locker/docs/<id>/p_0.jpg.enc | head -c 64` must not
+  start with JPEG magic (`FF D8 FF`) and `index.bin` must not contain a readable document name.
+- No plaintext leftovers: while cropping a locker page, `adb shell run-as app.flipscan ls no_backup/locker_tmp`
+  shows one `edit-*` folder; after Apply, Cancel or locking, it is gone. Abandon a locker capture with Back
+  (Discard) and check `files/work` is empty.
+- Interrupted save: `adb shell am force-stop app.flipscan` right after tapping Review/Save. Relaunch: the
+  half-written document is not listed, `files/work` has no page files, and the locker still opens normally.
+- Tamper/corruption: with the app closed, `adb shell run-as app.flipscan` overwrite a byte in `index.bin`.
+  The locker shows the "encrypted index could not be opened" message, does not list or delete anything, and
+  recovers once the file is restored (a real Keystore failure is not recoverable, by design).
+- Lock button in the locker header returns Home immediately and ends the session; the next visit asks again.
+
 ## Rename / file name
 - Result screen: pencil icon → rename the scan. The header updates; Home shows the new name after Back.
 - Kill and reopen the app: the renamed name must persist.
@@ -87,4 +125,5 @@
 This is the build that is distributed; install it once before publishing:
 - `bash gradlew assembleRelease` and install `app/build/outputs/apk/release/app-release-unsigned.apk` after signing.
 - Open the camera, toggle the torch, capture a card both ways, crop with OpenCV perspective correction, rotate, save PDF/JPG/PNG, and share.
+- Open the Digital Locker, unlock with the system prompt, save one card document and one multi-page document, rotate and crop a locker page, rename and delete it, then restart the app and confirm the locker still unlocks and opens the remaining document. R8 must not break Keystore (encryption), org.json (index) or androidx.biometric (prompt).
 - If anything fails only in release, the first suspect is a missing keep rule in `app/proguard-rules.pro` (OpenCV JNI, CameraX runtime classes).

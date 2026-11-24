@@ -59,12 +59,22 @@ import java.io.File
 
 /** Regular mode camera: capture one or many pages; every capture becomes its own page. */
 @Composable
-fun RegularScreen(pages: SnapshotStateList<File>, onDone: () -> Unit, onBack: () -> Unit) {
-    CameraPermissionGate { RegularContent(pages, onDone, onBack) }
+fun RegularScreen(
+    pages: SnapshotStateList<File>,
+    title: String = "Document",
+    onDone: () -> Unit,
+    onBack: () -> Unit
+) {
+    CameraPermissionGate { RegularContent(pages, title, onDone, onBack) }
 }
 
 @Composable
-private fun RegularContent(pages: SnapshotStateList<File>, onDone: () -> Unit, onBack: () -> Unit) {
+private fun RegularContent(
+    pages: SnapshotStateList<File>,
+    title: String,
+    onDone: () -> Unit,
+    onBack: () -> Unit
+) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
     val cam = rememberScanCameraState(cardMode = false)
@@ -116,7 +126,7 @@ private fun RegularContent(pages: SnapshotStateList<File>, onDone: () -> Unit, o
                 .background(Brush.verticalGradient(listOf(Color(0xB30A1020), Color.Transparent)))
         )
         CameraHeader(
-            title = "Document",
+            title = title,
             subtitle = if (pages.isEmpty()) "Capture the first page" else "${pages.size} page(s) captured",
             onBack = { if (pages.isEmpty()) onBack() else confirmExit = true }
         ) {

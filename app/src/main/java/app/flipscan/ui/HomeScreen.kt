@@ -63,7 +63,8 @@ fun HomeScreen(
     onDoubleSide: () -> Unit,
     onRegular: () -> Unit,
     onEdit: (Scan) -> Unit,
-    onOpenFolder: (Folder) -> Unit
+    onOpenFolder: (Folder) -> Unit,
+    onLocker: () -> Unit
 ) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -122,6 +123,8 @@ fun HomeScreen(
                     )
                 }
             }
+
+            item(key = "locker") { LockerEntryCard(onClick = onLocker) }
 
             item(key = "foldersHeader") {
                 Row(
@@ -394,6 +397,53 @@ private fun ActionCard(
             Icons.AutoMirrored.Filled.KeyboardArrowRight,
             contentDescription = null,
             tint = if (filled) fg.copy(alpha = 0.7f) else MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
+/** The locker is visually related to the scan cards, but tinted and labelled so it reads as a separate, protected place. */
+@Composable
+private fun LockerEntryCard(onClick: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth()
+            .glass(MaterialTheme.shapes.large, accent = MaterialTheme.colorScheme.tertiary, elevation = 2.dp)
+            .pressable(onClick)
+            .padding(horizontal = 16.dp, vertical = 15.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            Modifier.size(48.dp).clip(RoundedCornerShape(15.dp))
+                .background(MaterialTheme.colorScheme.tertiaryContainer),
+            contentAlignment = Alignment.Center
+        ) {
+            LockIcon(Modifier.size(24.dp), MaterialTheme.colorScheme.onTertiaryContainer)
+        }
+        Column(Modifier.weight(1f).padding(start = 14.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Digital Locker", style = MaterialTheme.typography.titleMedium)
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    "Locked",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onTertiaryContainer,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(50))
+                        .background(MaterialTheme.colorScheme.tertiaryContainer)
+                        .padding(horizontal = 8.dp, vertical = 3.dp)
+                )
+            }
+            Text(
+                "Aadhaar, PAN, passport — encrypted on this phone",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+        Icon(
+            Icons.AutoMirrored.Filled.KeyboardArrowRight,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
 }

@@ -5,9 +5,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.RoundRect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathFillType
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -203,6 +206,40 @@ fun BrandMark(modifier: Modifier = Modifier, tint: Color = Color.White) {
             size = Size(w * 0.3f, h * 0.07f),
             cornerRadius = CornerRadius(h * 0.04f)
         )
+    }
+}
+
+/** Closed padlock: the locker entry, lock action and empty-state mark. */
+@Composable
+fun LockIcon(modifier: Modifier = Modifier, color: Color, label: String? = null) {
+    Canvas(modifier.iconLabel(label)) {
+        val w = size.width
+        val h = size.height
+        val stroke = (w * 0.085f).coerceAtLeast(1.5.dp.toPx())
+        drawArc(
+            color = color,
+            startAngle = 180f,
+            sweepAngle = 180f,
+            useCenter = false,
+            topLeft = Offset(w * 0.30f, h * 0.10f),
+            size = Size(w * 0.40f, h * 0.56f),
+            style = Stroke(width = stroke, cap = StrokeCap.Round)
+        )
+        drawLine(color, Offset(w * 0.30f, h * 0.38f), Offset(w * 0.30f, h * 0.44f), strokeWidth = stroke, cap = StrokeCap.Round)
+        drawLine(color, Offset(w * 0.70f, h * 0.38f), Offset(w * 0.70f, h * 0.44f), strokeWidth = stroke, cap = StrokeCap.Round)
+        // Body with a punched-out keyhole (EvenOdd keeps the hole transparent on any background).
+        val body = Path().apply {
+            fillType = PathFillType.EvenOdd
+            addRoundRect(
+                RoundRect(
+                    rect = Rect(w * 0.16f, h * 0.40f, w * 0.84f, h * 0.94f),
+                    cornerRadius = CornerRadius(w * 0.12f)
+                )
+            )
+            addOval(Rect(w * 0.43f, h * 0.55f, w * 0.57f, h * 0.69f))
+            addRect(Rect(w * 0.47f, h * 0.64f, w * 0.53f, h * 0.80f))
+        }
+        drawPath(body, color)
     }
 }
 

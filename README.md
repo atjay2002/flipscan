@@ -4,9 +4,11 @@ Scan **both sides** of a card (Aadhaar, PAN, driving licence, voter ID, college 
 
 - 100% offline: no INTERNET permission, no ads, no analytics, no cloud
 - Scans stay in app-private storage until you export
+- Sensitive documents stay encrypted, behind your phone's own screen lock
 - MIT licensed
 
 ## Features
+- **Digital Locker**: a separate, authenticated space for sensitive documents (Aadhaar, PAN, passport, driving licence, voter ID, or a custom document). It reuses the same camera and crop flow, but every page, crop corner and thumbnail is encrypted with AES-256-GCM under a key held in Android Keystore before it reaches storage. Unlocking uses the system BiometricPrompt with the phone's PIN/pattern/password as the fallback, so FlipScan never sees or stores a credential. The locker re-locks when the app goes to the background, after 5 minutes, and on process death; its screens block screenshots (`FLAG_SECURE`), and locker documents never appear in Recent scans, folders or Downloads.
 - **Double Side mode**: FRONT and BACK slots laid out like the final page; the live preview slides from slot to slot; tap a slot to retake; standard card size 85.6 x 54 mm.
 - **Regular mode**: many pages, free-form edge detection and crop, reorder and delete.
 - **Detection (OpenCV)**: downscaled frames, every 3rd frame, background thread, latest-frame-only; grayscale, blur, Canny, largest quadrilateral, perspective warp on the full-resolution photo. Corner overlay, auto-capture after ~1 s steady, blur and glare warnings.
@@ -64,17 +66,39 @@ adb install -r app-release-test.apk
 The native OpenCV libraries are the dominant cost and are already trimmed to the ABIs the app
 supports (`arm64-v8a`, `armeabi-v7a`; `x86_64` only in debug).
 
+Version 0.5.0 (Digital Locker) measures 103,778,252 B debug (+771 KB) and 39,161,602 B signed
+release (+287 KB), including the `androidx.biometric` library.
+
 ## Project layout
 - `scan/`: CameraX state (incl. torch), frame analyzer, OpenCV detector, page processor
 - `export/`: layout maths, sheet renderer, filters, exporter (PDF/JPG/PNG), share
-- `data/`: settings, scan storage, Downloads writer
-- `ui/`: Compose screens, theme tokens, shared components, custom icons
+- `data/`: settings, scan storage, Downloads writer, `LockerCrypto` (Keystore AES-GCM) and `LockerStore` (encrypted locker index and documents)
+- `ui/`: Compose screens, theme tokens, shared components, custom icons, locker gate/home/viewer
+
+## Digital Locker (Phase 1)
+- Storage: `filesDir/locker/index.bin` (encrypted JSON index) and `filesDir/locker/docs/<uuid>/`
+  holding `p_i.jpg.enc`, `p_i.orig.jpg.enc`, `p_i.quad.enc` and `thumb.jpg.enc`. Filenames expose only
+  a random UUID and the page count; names, types and dates live inside the encrypted index.
+- Encryption: one AES-256-GCM key generated in Android Keystore (alias `flipscan_locker_v1`), a fresh
+  random IV per record, envelope `FSLK1 | ivLen | iv | ciphertext+tag`. The GCM tag rejects tampered
+  or truncated files. The key is not bound to biometrics, so enrolling a new fingerprint cannot
+  destroy stored documents; the locker is gated by the system prompt at the app level instead.
+- Writes: every record goes to a `.tmp` name and is renamed into place; an import creates its
+  directory first, then the index, and only then deletes the plaintext capture files. A failed save
+  rolls back; an interrupted one is cleaned up by `LockerStore.sweep()` on the next start (it deletes
+  nothing when the index itself cannot be read).
+- Plaintext copies exist only while a crop or rotate is in progress, and only under
+  `noBackupFilesDir/locker_tmp`; they are removed in a `finally`, on lock, and at start-up.
+- No export or share of locker documents in this version: both would create plaintext copies.
+- Backups: `android:allowBackup="false"`, and nothing under `filesDir/locker` is exposed by FileProvider.
 
 ## Known limitations
-- Portrait only. The 0.3.0 UI redesign, the 0.4.0 crop loupe, folders, rename and Open/Edit flows, and the 0.4.1 glass visual layer compile and pass lint, but have not been exercised on a physical device yet: see `docs/TESTING.md` for the test and profiling checklist.
+- Portrait only. The 0.3.0 UI redesign, the 0.4.0 crop loupe, folders, rename and Open/Edit flows, the 0.4.1 glass visual layer, and the 0.5.0 Digital Locker compile and pass lint, but have not been exercised on a physical device yet: see `docs/TESTING.md` for the test and profiling checklist.
 - PdfDocument stores images losslessly, so PDF size limits are met by lowering resolution.
 - Blur/glare thresholds are first guesses and need tuning on real phones.
-- Not built yet: Aadhaar masking, watermark, app lock, Tamil/Hindi.
+- Digital Locker is Phase 1: it stores and edits encrypted scans. It does not read document numbers yet, so there is nothing to mask or verify; Digital Pins (document-number reveal/copy) and OCR are Phase 2. Locker documents also cannot be exported or shared yet, by design.
+- Device-credential fallback, lockout and enrolment-change behaviour depend on the phone's biometric stack and can only be confirmed on hardware.
+- Not built yet: Aadhaar masking, watermark, whole-app lock, Tamil/Hindi.
 - R8 full mode is left at the AGP default; if a release-only crash appears on a device, check the keep rules in `app/proguard-rules.pro` first.
 
 See [SPEC.md](SPEC.md) for the full plan. License: [MIT](LICENSE).

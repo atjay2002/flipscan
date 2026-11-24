@@ -70,12 +70,24 @@ private const val CARD_RATIO = 85.6f / 54f
 private val Green = Color(0xFF34D399)
 
 @Composable
-fun DoubleSideScreen(onBack: () -> Unit, onDone: (front: File, back: File) -> Unit) {
-    CameraPermissionGate { DoubleSideContent(onBack, onDone) }
+fun DoubleSideScreen(
+    onBack: () -> Unit,
+    allowSingleSide: Boolean = false,
+    title: String = "ID card",
+    subtitle: String = "Both sides on one page",
+    onDone: (pages: List<File>) -> Unit
+) {
+    CameraPermissionGate { DoubleSideContent(onBack, allowSingleSide, title, subtitle, onDone) }
 }
 
 @Composable
-private fun DoubleSideContent(onBack: () -> Unit, onDone: (File, File) -> Unit) {
+private fun DoubleSideContent(
+    onBack: () -> Unit,
+    allowSingleSide: Boolean,
+    title: String,
+    subtitle: String,
+    onDone: (List<File>) -> Unit
+) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
     val cam = rememberScanCameraState(cardMode = true)
@@ -121,7 +133,10 @@ private fun DoubleSideContent(onBack: () -> Unit, onDone: (File, File) -> Unit) 
                     }
                     shots++
                     // Move on to the other side if it is still empty, otherwise we are done.
+                    // With allowSingleSide a single capture is a complete document; the empty
+                    // slot can still be tapped to add the other side.
                     active = when {
+                        allowSingleSide -> -1
                         slot == 0 && backFile == null -> 1
                         slot == 1 && frontFile == null -> 0
                         else -> -1
@@ -141,8 +156,8 @@ private fun DoubleSideContent(onBack: () -> Unit, onDone: (File, File) -> Unit) 
             .background(Brush.verticalGradient(listOf(CameraTop, Color(0xFF101A2E), CameraBottom)))
     ) {
         CameraHeader(
-            title = "ID card",
-            subtitle = "Both sides on one page",
+            title = title,
+            subtitle = subtitle,
             onBack = { if (hasAny) confirmExit = true else onBack() }
         ) {
             // Only meaningful while a camera is bound (the preview composes only for an active slot).
@@ -197,13 +212,16 @@ private fun DoubleSideContent(onBack: () -> Unit, onDone: (File, File) -> Unit) 
             if (active >= 0) {
                 LiveStatus(cam, if (active == 0) "Front" else "Back")
             } else {
-                StatusPill("Both sides captured", accent = Green)
+                val captured = listOfNotNull(frontFile, backFile)
+                StatusPill(if (captured.size > 1) "Both sides captured" else "Side captured", accent = Green)
             }
             Text(
                 when {
                     active == 0 -> "Fill the frame with the front of the card"
                     active == 1 && frontFile == null -> "Fill the frame with the back of the card"
                     active == 1 -> "Now flip the card for the back side"
+                    allowSingleSide && listOfNotNull(frontFile, backFile).size == 1 ->
+                        "Tap the empty card to add the other side, or review"
                     else -> "Tap a card above to retake it"
                 },
                 style = MaterialTheme.typography.bodySmall,
@@ -218,11 +236,10 @@ private fun DoubleSideContent(onBack: () -> Unit, onDone: (File, File) -> Unit) 
                 AutoCaptureToggle(auto, Modifier.width(90.dp)) { auto = it }
                 ShutterButton(enabled = !busy && active >= 0, progress = { cam.steady }, onClick = ::shoot)
                 Box(Modifier.width(90.dp), contentAlignment = Alignment.Center) {
-                    val f = frontFile
-                    val b = backFile
-                    if (f != null && b != null && !busy) {
+                    val captured = listOfNotNull(frontFile, backFile)
+                    if (captured.isNotEmpty() && !busy) {
                         Button(
-                            onClick = { onDone(f, b) },
+                            onClick = { onDone(captured) },
                             shape = MaterialTheme.shapes.small,
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = Color.White,

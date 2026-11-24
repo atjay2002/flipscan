@@ -1,9 +1,6 @@
 package app.flipscan.data
 
 import android.content.Context
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
-import android.graphics.Matrix
 import app.flipscan.scan.Sidecar
 import org.json.JSONArray
 import org.json.JSONObject
@@ -107,16 +104,6 @@ object ScanStore {
         val updated = scan.copy(exports = list)
         writeMeta(ctx, updated)
         return updated
-    }
-
-    /** Rotates one stored page 90 degrees clockwise (re-encodes the JPEG in place). */
-    fun rotatePage(ctx: Context, scan: Scan, index: Int) {
-        val f = pageFiles(ctx, scan).getOrNull(index) ?: return
-        val src = BitmapFactory.decodeFile(f.path) ?: return
-        val rotated = Bitmap.createBitmap(src, 0, 0, src.width, src.height, Matrix().apply { postRotate(90f) }, true)
-        if (rotated !== src) src.recycle()
-        f.outputStream().use { rotated.compress(Bitmap.CompressFormat.JPEG, 92, it) }
-        rotated.recycle()
     }
 
     fun delete(ctx: Context, scan: Scan) {

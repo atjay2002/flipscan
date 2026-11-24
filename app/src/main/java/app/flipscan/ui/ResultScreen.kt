@@ -249,7 +249,8 @@ private fun ResultContent(scan: Scan, onBack: () -> Unit, onScanChanged: (Scan) 
                     scope.launch {
                         busy = "Rotating…"
                         withContext(Dispatchers.IO) {
-                            PageEditor.rotate(ctx, scan, i)
+                            val page = ScanStore.pageFiles(ctx, scan).getOrNull(i)
+                            if (page != null) PageEditor.rotate(page, scan.mode == Mode.CARDS)
                             runCatching { Exporter.writeThumb(ctx, scan) }
                         }
                         busy = null
@@ -315,9 +316,20 @@ private fun ResultContent(scan: Scan, onBack: () -> Unit, onScanChanged: (Scan) 
         }
 
         cropIndex?.let { i ->
-            CropScreen(scan, i) { changed ->
+            val cards = scan.mode == Mode.CARDS
+            CropScreen(
+                page = ScanStore.pageFiles(ctx, scan).getOrNull(i),
+                cardMode = cards,
+                pageName = if (cards) (if (i == 0) "Front" else "Back") else "Page ${i + 1}"
+            ) { changed ->
                 cropIndex = null
-                if (changed) rev++
+                if (changed) {
+                    // The list thumbnail follows the new crop; the page itself is already written.
+                    scope.launch {
+                        withContext(Dispatchers.IO) { runCatching { Exporter.writeThumb(ctx, scan) } }
+                        rev++
+                    }
+                }
             }
         }
 

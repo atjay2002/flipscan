@@ -12,8 +12,8 @@ android {
         applicationId = "app.flipscan"
         minSdk = 24
         targetSdk = 34
-        versionCode = 5
-        versionName = "0.4.1"
+        versionCode = 6
+        versionName = "0.5.0"
     }
 
     buildTypes {
@@ -75,6 +75,9 @@ dependencies {
     implementation("androidx.camera:camera-camera2:$camerax")
     implementation("androidx.camera:camera-lifecycle:$camerax")
     implementation("androidx.camera:camera-view:$camerax")
+
+    // System BiometricPrompt with device-credential fallback (no custom PIN, no network).
+    implementation("androidx.biometric:biometric:1.1.0")
 
     // OpenCV for Android (detection + perspective correction), from Maven Central
     implementation("org.opencv:opencv:4.9.0")

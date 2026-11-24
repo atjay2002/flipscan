@@ -52,16 +52,11 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
-import app.flipscan.data.Mode
 import app.flipscan.data.PageEditor
-import app.flipscan.data.Scan
-import app.flipscan.data.ScanStore
-import app.flipscan.export.Exporter
 import app.flipscan.scan.Pt
 import app.flipscan.scan.Quad
 import app.flipscan.scan.Sidecar
@@ -69,6 +64,7 @@ import app.flipscan.util.decodeSampled
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.File
 
 private class CropData(val bitmap: Bitmap, val quad: Quad)
 
@@ -78,23 +74,31 @@ private val Accent = Color(0xFF34D399)
 /**
  * Drag the 4 corners to crop; perspective is corrected when applied.
  * The green corner becomes the top-left of the result, so rotating just moves the green corner.
+ *
+ * [page] is the cropped page file; its `.orig.jpg` and `.quad` sidecars are read from the same
+ * folder. The locker passes a decrypted temp page here, so the crop editor itself never needs to
+ * know about scans or encryption.
  */
 @Composable
-fun CropScreen(scan: Scan, index: Int, onClose: (changed: Boolean) -> Unit) {
-    val ctx = LocalContext.current
+fun CropScreen(
+    page: File?,
+    cardMode: Boolean,
+    pageName: String,
+    onClose: (changed: Boolean) -> Unit
+) {
     val scope = rememberCoroutineScope()
     BackHandler { onClose(false) }
 
-    val data by produceState<CropData?>(null, scan.id, index) {
-        value = withContext(Dispatchers.IO) {
-            val page = ScanStore.pageFiles(ctx, scan).getOrNull(index)
-            val bmp = page?.let { decodeSampled(Sidecar.orig(it), 1600) }
-            if (bmp == null) null else CropData(bmp, PageEditor.loadQuad(ctx, scan, index) ?: FullImage)
+    val data by produceState<CropData?>(null, page) {
+        value = if (page == null) {
+            null
+        } else withContext(Dispatchers.IO) {
+            val bmp = decodeSampled(Sidecar.orig(page), 1600)
+            if (bmp == null) null else CropData(bmp, PageEditor.loadQuad(page) ?: FullImage)
         }
     }
     var busy by remember { mutableStateOf(false) }
     val loaded = data
-    val pageName = if (scan.mode == Mode.CARDS) (if (index == 0) "Front" else "Back") else "Page ${index + 1}"
 
     Column(Modifier.fillMaxSize().background(CameraTop)) {
         CameraHeader(
@@ -124,7 +128,7 @@ fun CropScreen(scan: Scan, index: Int, onClose: (changed: Boolean) -> Unit) {
                         modifier = Modifier.padding(top = 16.dp)
                     )
                     Text(
-                        "It was scanned with an older version of FlipScan, so it cannot be re-cropped. " +
+                        "This page has no stored original, so it cannot be re-cropped. " +
                             "You can still rotate it from the previous screen.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = Color.White.copy(alpha = 0.65f),
@@ -330,9 +334,7 @@ fun CropScreen(scan: Scan, index: Int, onClose: (changed: Boolean) -> Unit) {
                     scope.launch {
                         busy = true
                         val ok = withContext(Dispatchers.Default) {
-                            val applied = PageEditor.applyCrop(ctx, scan, index, quad)
-                            if (applied) runCatching { Exporter.writeThumb(ctx, scan) }
-                            applied
+                            page != null && PageEditor.applyCrop(page, quad, cardMode)
                         }
                         busy = false
                         onClose(ok)
