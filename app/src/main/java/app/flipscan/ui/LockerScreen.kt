@@ -49,7 +49,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
@@ -327,7 +326,7 @@ fun LockerHomeScreen(
                 }
 
                 item(key = "pins") {
-                    DigitalPinsPlaceholder(Modifier.padding(top = 8.dp))
+                    DigitalPinsSection(docs = docs, onOpen = onOpen)
                 }
                 item(key = "privacy") {
                     Text(
@@ -484,33 +483,6 @@ fun LockerThumb(id: String, modifier: Modifier = Modifier, maxSide: Int = 220) {
                 MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
             )
         }
-    }
-}
-
-@Composable
-private fun DigitalPinsPlaceholder(modifier: Modifier = Modifier) {
-    Row(
-        modifier.fillMaxWidth().alpha(0.62f)
-            .glass(MaterialTheme.shapes.large)
-            .padding(16.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Box(
-            Modifier.size(40.dp).clip(RoundedCornerShape(12.dp))
-                .background(MaterialTheme.colorScheme.surfaceVariant),
-            contentAlignment = Alignment.Center
-        ) {
-            DocumentIcon(Modifier.size(20.dp), MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-        Column(Modifier.weight(1f).padding(start = 12.dp)) {
-            Text("Digital Pins", style = MaterialTheme.typography.titleSmall)
-            Text(
-                "Verified document numbers with reveal, copy and edit.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-        CountBadge("Phase 2")
     }
 }
 

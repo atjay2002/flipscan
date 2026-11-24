@@ -16,26 +16,40 @@ import java.util.Locale
 import java.util.UUID
 
 /** The kinds of sensitive document the locker offers. Cards use the front/back camera flow. */
-enum class LockerDocType(val label: String, val hint: String, val cards: Boolean) {
+enum class LockerDocType(
+    val label: String,
+    val hint: String,
+    val cards: Boolean,
+    /** Digital Pins can read a document number from these; a custom document has no known shape. */
+    val pins: Boolean = true
+) {
     AADHAAR("Aadhaar", "Identity card · front and back", true),
     PAN("PAN", "Tax card · front and back", true),
     PASSPORT("Passport", "Booklet · photo and address pages", false),
     DRIVING_LICENCE("Driving Licence", "Card · front and back", true),
     VOTER_ID("Voter ID", "Card · front and back", true),
-    CUSTOM("Custom document", "Any document you want encrypted", false);
+    CUSTOM("Custom document", "Any document you want encrypted", false, pins = false);
 
     companion object {
         fun from(raw: String): LockerDocType = entries.firstOrNull { it.name == raw } ?: CUSTOM
     }
 }
 
-/** One protected document. Only non-secret metadata; the pages live encrypted next to it. */
+/**
+ * One protected document. Names, types, dates and the optional Digital Pin live in the encrypted
+ * index; the pages live encrypted next to it. [numberChecked] records that on-device OCR has already
+ * looked at this document, so opening it again does not re-run recognition.
+ */
 data class LockerDoc(
     val id: String,
     val type: LockerDocType,
     val name: String,
     val createdAt: Long,
-    val pages: Int
+    val pages: Int,
+    val number: String? = null,
+    val numberPage: Int? = null,
+    val numberVerified: Boolean = false,
+    val numberChecked: Boolean = false
 )
 
 /**
@@ -143,6 +157,44 @@ object LockerStore {
         val next = docs.toMutableList().also { it[at] = updated }
         writeIndex(ctx, next)
         return updated
+    }
+
+    /**
+     * Stores (or clears, when [value] is null) the Digital Pin for one document. Reads the index
+     * again so a concurrent rename or OCR result is not lost. [checked] marks that recognition has
+     * already run, which stops the viewer from trying again on every open.
+     */
+    fun setNumber(
+        ctx: Context,
+        id: String,
+        value: String?,
+        page: Int? = null,
+        verified: Boolean = false,
+        checked: Boolean = true
+    ): LockerDoc? = synchronized(lock) {
+        val docs = readIndexOrThrow(ctx)
+        val at = docs.indexOfFirst { it.id == id }
+        if (at < 0) return null
+        val current = docs[at]
+        val clean = value?.let { PinFormat.normalize(current.type, it).ifEmpty { null } }
+        val updated = current.copy(
+            number = clean,
+            numberPage = if (clean == null) null else page,
+            numberVerified = clean != null && verified,
+            numberChecked = checked
+        )
+        writeIndex(ctx, docs.toMutableList().also { it[at] = updated })
+        updated
+    }
+
+    /** Records that recognition ran for this document without changing what it found. */
+    fun markNumberChecked(ctx: Context, id: String): LockerDoc? = synchronized(lock) {
+        val docs = readIndexOrThrow(ctx)
+        val at = docs.indexOfFirst { it.id == id }
+        if (at < 0) return null
+        val updated = docs[at].copy(numberChecked = true)
+        writeIndex(ctx, docs.toMutableList().also { it[at] = updated })
+        updated
     }
 
     fun delete(ctx: Context, id: String): Boolean = synchronized(lock) {
@@ -296,14 +348,18 @@ object LockerStore {
     private fun writeIndex(ctx: Context, docs: List<LockerDoc>) {
         val arr = JSONArray()
         docs.forEach { d ->
-            arr.put(
-                JSONObject()
-                    .put("id", d.id)
-                    .put("type", d.type.name)
-                    .put("name", d.name)
-                    .put("createdAt", d.createdAt)
-                    .put("pages", d.pages)
-            )
+            val o = JSONObject()
+                .put("id", d.id)
+                .put("type", d.type.name)
+                .put("name", d.name)
+                .put("createdAt", d.createdAt)
+                .put("pages", d.pages)
+            // Absent keys mean "no pin / not checked", so an older index still reads correctly.
+            d.number?.let { o.put("number", it) }
+            d.numberPage?.let { o.put("numberPage", it) }
+            if (d.numberVerified) o.put("numberVerified", true)
+            if (d.numberChecked) o.put("numberChecked", true)
+            arr.put(o)
         }
         writeEncrypted(indexFile(ctx), arr.toString().toByteArray(Charsets.UTF_8))
     }
@@ -320,7 +376,11 @@ object LockerStore {
                 type = LockerDocType.from(o.optString("type")),
                 name = o.getString("name"),
                 createdAt = o.getLong("createdAt"),
-                pages = o.getInt("pages")
+                pages = o.getInt("pages"),
+                number = o.optString("number", "").ifEmpty { null },
+                numberPage = if (o.has("numberPage")) o.optInt("numberPage") else null,
+                numberVerified = o.optBoolean("numberVerified", false),
+                numberChecked = o.optBoolean("numberChecked", false)
             )
         }.sortedByDescending { it.createdAt }
     }

@@ -12,8 +12,8 @@ android {
         applicationId = "app.flipscan"
         minSdk = 24
         targetSdk = 34
-        versionCode = 6
-        versionName = "0.5.0"
+        versionCode = 7
+        versionName = "0.6.0"
     }
 
     buildTypes {
@@ -78,6 +78,10 @@ dependencies {
 
     // System BiometricPrompt with device-credential fallback (no custom PIN, no network).
     implementation("androidx.biometric:biometric:1.1.0")
+
+    // On-device text recognition for Digital Pins. This is the bundled artifact: the Latin OCR
+    // model ships inside the APK, so no Play Services download and no network are involved.
+    implementation("com.google.mlkit:text-recognition:16.0.1")
 
     // OpenCV for Android (detection + perspective correction), from Maven Central
     implementation("org.opencv:opencv:4.9.0")

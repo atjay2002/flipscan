@@ -85,6 +85,15 @@ Setup: set a screen lock and enrol a fingerprint (or face) on the phone. Then Ho
   recovers once the file is restored (a real Keystore failure is not recoverable, by design).
 - Lock button in the locker header returns Home immediately and ends the session; the next visit asks again.
 
+## Digital Pins (Phase 2)
+- Open a card document in the locker: reading starts once per document and the result is stored encrypted. Do not run it again on re-open (the `numberChecked` flag lives in the index).
+- Aadhaar: first 8 digits masked (`•••• •••• 1234`), last four visible. PAN/Passport/DL/Voter ID: last four characters visible. Read-then-copy, hide after 20 seconds.
+- Copy uses Android 13+'s "sensitive" clipboard flag — no preview in the system UI.
+- Edit: typed numbers are normalized as you type and blocked until they match the expected shape; invalid stays out of the index.
+- Read again: if a worn card gives nothing the first time, tapping "Read again" re-runs on-device OCR over the pages.
+- Wrong numbers are expected with laminated or angled cards — correct by hand before saving; OCR never verifies against an authority.
+- Custom documents: no auto-read; the user can type any number and it is stored encrypted.
+
 ## Rename / file name
 - Result screen: pencil icon → rename the scan. The header updates; Home shows the new name after Back.
 - Kill and reopen the app: the renamed name must persist.

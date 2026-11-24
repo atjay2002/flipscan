@@ -1,7 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- Camera only. FlipScan deliberately has NO INTERNET permission. -->
+    <!-- Camera only. FlipScan deliberately has NO INTERNET permission. ML Kit's manifest merges
+         its own permissions; INTERNET and ACCESS_NETWORK_STATE are explicitly removed because the
+         bundled OCR model never needs the network, and FlipScan keeps that invariant at build time. -->
+    <uses-permission
+        android:name="android.permission.INTERNET"
+        tools:node="remove" />
+    <uses-permission
+        android:name="android.permission.ACCESS_NETWORK_STATE"
+        tools:node="remove" />
     <uses-permission android:name="android.permission.CAMERA" />
     <!-- Normal permission, no runtime dialog: lets the system show the biometric prompt. -->
     <uses-permission android:name="android.permission.USE_BIOMETRIC" />

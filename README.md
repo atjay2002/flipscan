@@ -9,6 +9,7 @@ Scan **both sides** of a card (Aadhaar, PAN, driving licence, voter ID, college 
 
 ## Features
 - **Digital Locker**: a separate, authenticated space for sensitive documents (Aadhaar, PAN, passport, driving licence, voter ID, or a custom document). It reuses the same camera and crop flow, but every page, crop corner and thumbnail is encrypted with AES-256-GCM under a key held in Android Keystore before it reaches storage. Unlocking uses the system BiometricPrompt with the phone's PIN/pattern/password as the fallback, so FlipScan never sees or stores a credential. The locker re-locks when the app goes to the background, after 5 minutes, and on process death; its screens block screenshots (`FLAG_SECURE`), and locker documents never appear in Recent scans, folders or Downloads.
+- **Digital Pins**: document numbers read from your cards with on-device text recognition (ML Kit bundled model — no network, no Play Services download), sealed under the same Keystore key. Numbers are masked by default (`•••• •••• 1234` for Aadhaar, last-four-only otherwise), reveal only while you look, hide themselves after 20 seconds, can be copied (Android 13+ "sensitive" clipboard flag) or edited by hand. Runs once per document and stores the result encrypted in the index.
 - **Double Side mode**: FRONT and BACK slots laid out like the final page; the live preview slides from slot to slot; tap a slot to retake; standard card size 85.6 x 54 mm.
 - **Regular mode**: many pages, free-form edge detection and crop, reorder and delete.
 - **Detection (OpenCV)**: downscaled frames, every 3rd frame, background thread, latest-frame-only; grayscale, blur, Canny, largest quadrilateral, perspective warp on the full-resolution photo. Corner overlay, auto-capture after ~1 s steady, blur and glare warnings.
@@ -66,14 +67,19 @@ adb install -r app-release-test.apk
 The native OpenCV libraries are the dominant cost and are already trimmed to the ABIs the app
 supports (`arm64-v8a`, `armeabi-v7a`; `x86_64` only in debug).
 
-Version 0.5.0 (Digital Locker) measures 103,778,252 B debug (+771 KB) and 39,161,602 B signed
-release (+287 KB), including the `androidx.biometric` library.
+Version 0.6.0 (Digital Pins) measures 135,115,788 B debug and 58,755,869 B signed release
+(+19,594,267 B over 0.5.0), almost all of it the bundled ML Kit OCR model. `tools:node="remove"`
+strips the `INTERNET` and `ACCESS_NETWORK_STATE` permissions ML Kit's manifest would otherwise add,
+so the offline invariant holds exactly as before.
 
 ## Project layout
 - `scan/`: CameraX state (incl. torch), frame analyzer, OpenCV detector, page processor
 - `export/`: layout maths, sheet renderer, filters, exporter (PDF/JPG/PNG), share
-- `data/`: settings, scan storage, Downloads writer, `LockerCrypto` (Keystore AES-GCM) and `LockerStore` (encrypted locker index and documents)
-- `ui/`: Compose screens, theme tokens, shared components, custom icons, locker gate/home/viewer
+- `data/`: settings, scan storage, Downloads writer, `LockerCrypto` (Keystore AES-GCM), `LockerStore`
+  (encrypted locker index and documents), `LockerOcr` (on-device text recognition), `PinFormat`
+  (number formats, masking and the Aadhaar Verhoeff checksum)
+- `ui/`: Compose screens, theme tokens, shared components, custom icons, locker gate/home/viewer,
+  Digital Pins card and section
 
 ## Digital Locker (Phase 1)
 - Storage: `filesDir/locker/index.bin` (encrypted JSON index) and `filesDir/locker/docs/<uuid>/`
@@ -92,13 +98,28 @@ release (+287 KB), including the `androidx.biometric` library.
 - No export or share of locker documents in this version: both would create plaintext copies.
 - Backups: `android:allowBackup="false"`, and nothing under `filesDir/locker` is exposed by FileProvider.
 
+## Digital Pins (Phase 2)
+- Numbers are read with ML Kit's bundled Latin OCR model inside `data/LockerOcr.kt`. Recognition runs
+  entirely on the phone — the model ships in the APK, so there is no network and no Play Services
+  dependency. One page at a time is decrypted, decoded at a bounded size, recognised and recycled;
+  the plaintext bitmap never touches disk and never appears in a log.
+- Only documents whose number has a known shape are candidates: Aadhaar, PAN, Passport, Driving
+  Licence and Voter ID (custom documents keep a freely typed number instead). `PinFormat` holds the
+  expected patterns per type and masks by default — Aadhaar hides its first eight digits; everything
+  else shows only the last four characters. A reveal lasts 20 seconds, then masks again. Copy uses
+  Android 13+'s "sensitive" clipboard flag so the system UI doesn't preview the value.
+- The Aadhaar twelfth digit is validated with the Verhoeff checksum, which catches most OCR
+  misreads and card transcription errors.
+- What OCR is not: it does not "verify" a number with any authority, and a match only means the
+  digits are internally consistent — the user can still edit or remove anything before saving.
+
 ## Known limitations
-- Portrait only. The 0.3.0 UI redesign, the 0.4.0 crop loupe, folders, rename and Open/Edit flows, the 0.4.1 glass visual layer, and the 0.5.0 Digital Locker compile and pass lint, but have not been exercised on a physical device yet: see `docs/TESTING.md` for the test and profiling checklist.
+- Portrait only. The 0.3.0 UI redesign, the 0.4.0 crop loupe, folders, rename and Open/Edit flows, the 0.4.1 glass visual layer, and the 0.5.0/0.6.0 Digital Locker and Digital Pins compile and pass lint, but have not been exercised on a physical device yet: see `docs/TESTING.md` for the test and profiling checklist.
 - PdfDocument stores images losslessly, so PDF size limits are met by lowering resolution.
 - Blur/glare thresholds are first guesses and need tuning on real phones.
-- Digital Locker is Phase 1: it stores and edits encrypted scans. It does not read document numbers yet, so there is nothing to mask or verify; Digital Pins (document-number reveal/copy) and OCR are Phase 2. Locker documents also cannot be exported or shared yet, by design.
+- OCR works best on well-lit, flat cards; crumpled, laminated or at-an-angle documents may produce a wrong number, so every reading can be corrected by hand before saving.
 - Device-credential fallback, lockout and enrolment-change behaviour depend on the phone's biometric stack and can only be confirmed on hardware.
-- Not built yet: Aadhaar masking, watermark, whole-app lock, Tamil/Hindi.
+- Not built yet: app lock (whole-app), whole-app watermark, Tamil/Hindi, cloud sync of any kind.
 - R8 full mode is left at the AGP default; if a release-only crash appears on a device, check the keep rules in `app/proguard-rules.pro` first.
 
 See [SPEC.md](SPEC.md) for the full plan. License: [MIT](LICENSE).

@@ -54,6 +54,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import app.flipscan.data.LockerDoc
 import app.flipscan.data.LockerEdit
+import app.flipscan.data.LockerOcr
 import app.flipscan.data.LockerStore
 import app.flipscan.util.decodeSampled
 import kotlinx.coroutines.Dispatchers
@@ -86,12 +87,21 @@ fun LockerViewerScreen(
     var renaming by remember { mutableStateOf(false) }
     var deleting by remember { mutableStateOf(false) }
     var canCrop by remember { mutableStateOf(false) }
+    var reading by remember(docId) { mutableStateOf(false) }
     BackHandler(onBack = onBack)
 
+    // Reading a number is on-device OCR and happens once per document; the flag lives in the
+    // encrypted index, so reopening a document does not run recognition again.
     LaunchedEffect(docId) {
         val loaded = withContext(Dispatchers.IO) { LockerStore.get(ctx, docId) }
         doc = loaded
         missing = loaded == null
+        if (loaded != null && loaded.type.pins && !loaded.numberChecked) {
+            reading = true
+            val updated = runCatching { LockerOcr.detectAndStore(ctx, docId) }.getOrNull()
+            reading = false
+            updated?.let { doc = it }
+        }
     }
 
     val pageCount = doc?.pages ?: 0
@@ -128,6 +138,17 @@ fun LockerViewerScreen(
             val edit = withContext(Dispatchers.IO) { LockerStore.stageForEdit(ctx, docId, page) }
             busy = null
             if (edit == null) message = "This page could not be opened for cropping." else cropEdit = edit
+        }
+    }
+
+    fun readNumber() {
+        if (reading) return
+        message = null
+        scope.launch {
+            reading = true
+            val updated = runCatching { LockerOcr.detectAndStore(ctx, docId) }.getOrNull()
+            reading = false
+            if (updated != null) doc = updated else message = "Could not read the number from this page."
         }
     }
 
@@ -233,12 +254,23 @@ fun LockerViewerScreen(
                         )
                     }
 
+                    val current = doc
+                    if (current != null) {
+                        DigitalPinCard(
+                            doc = current,
+                            reading = reading,
+                            onDetect = ::readNumber,
+                            onChanged = { doc = it },
+                            onError = { message = it }
+                        )
+                    }
+
                     Text(
-                        "Encrypted at rest. Locker documents are not exported, shared or listed in Downloads.",
+                        "Encrypted at rest · never exported, shared or listed in Downloads.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         textAlign = TextAlign.Center,
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 10.dp)
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 8.dp)
                     )
                 }
             }
