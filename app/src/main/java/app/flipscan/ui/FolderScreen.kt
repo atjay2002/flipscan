@@ -69,7 +69,7 @@ fun FolderScreen(folderId: String, onBack: () -> Unit, onEdit: (Scan) -> Unit) {
         if (loaded && folder == null) onBack()
     }
 
-    Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+    Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).ambientGlow()) {
         Column(Modifier.fillMaxSize()) {
             ScreenHeader(
                 title = folder?.name ?: "Folder",

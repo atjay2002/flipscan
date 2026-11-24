@@ -4,8 +4,8 @@ import android.widget.Toast
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -28,7 +28,6 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -42,6 +41,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -91,7 +93,7 @@ fun HomeScreen(
     val enterMs = motionMs(420)
     LaunchedEffect(Unit) { enter.animateTo(1f, tween(enterMs, easing = FastOutSlowInEasing)) }
 
-    Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+    Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).ambientGlow()) {
         LazyColumn(
             Modifier.fillMaxSize().graphicsLayer {
                 alpha = enter.value
@@ -335,30 +337,63 @@ private fun ActionCard(
     icon: @Composable () -> Unit,
     onClick: () -> Unit
 ) {
-    val bg = if (filled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface
+    val shape = MaterialTheme.shapes.large
     val fg = if (filled) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
-    val sub = if (filled) fg.copy(alpha = 0.78f) else MaterialTheme.colorScheme.onSurfaceVariant
-    Surface(
-        modifier = Modifier.fillMaxWidth().pressable(onClick),
-        shape = MaterialTheme.shapes.large,
-        color = bg,
-        border = if (filled) null else BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
-    ) {
-        Row(Modifier.padding(horizontal = 16.dp, vertical = 15.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                Modifier.size(48.dp).clip(RoundedCornerShape(15.dp))
-                    .background(if (filled) Color.White.copy(alpha = 0.16f) else MaterialTheme.colorScheme.secondaryContainer),
-                contentAlignment = Alignment.Center
-            ) { icon() }
-            Column(Modifier.weight(1f).padding(start = 14.dp)) {
-                Text(title, style = MaterialTheme.typography.titleMedium, color = fg)
-                Text(subtitle, style = MaterialTheme.typography.bodySmall, color = sub, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    val sub = if (filled) fg.copy(alpha = 0.9f) else MaterialTheme.colorScheme.onSurfaceVariant
+    val heroStart = MaterialTheme.colorScheme.primary
+    val heroEnd = MaterialTheme.colorScheme.tertiary
+    val cardModifier = if (filled) {
+        // Hero action: brand gradient, soft coloured shadow, sheen and a light edge.
+        val glow = heroStart.copy(alpha = 0.34f)
+        Modifier.fillMaxWidth()
+            .shadow(12.dp, shape, clip = false, ambientColor = glow, spotColor = glow)
+            .clip(shape)
+            .drawBehind {
+                val w = size.width.coerceAtLeast(1f)
+                val h = size.height.coerceAtLeast(1f)
+                drawRect(
+                    Brush.linearGradient(
+                        listOf(heroStart, heroEnd),
+                        start = Offset(0f, 0f),
+                        end = Offset(w, h)
+                    )
+                )
+                drawRect(
+                    Brush.verticalGradient(
+                        0f to Color.White.copy(alpha = 0.20f),
+                        0.65f to Color.Transparent,
+                        endY = h
+                    )
+                )
             }
-            Icon(
-                Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                contentDescription = null,
-                tint = if (filled) fg.copy(alpha = 0.7f) else MaterialTheme.colorScheme.onSurfaceVariant
+            .border(
+                1.dp,
+                Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.32f), Color.White.copy(alpha = 0.07f))),
+                shape
             )
+            .pressable(onClick)
+    } else {
+        Modifier.fillMaxWidth()
+            .glass(shape, accent = MaterialTheme.colorScheme.secondary, elevation = 2.dp)
+            .pressable(onClick)
+    }
+    Row(
+        cardModifier.padding(horizontal = 16.dp, vertical = 15.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            Modifier.size(48.dp).clip(RoundedCornerShape(15.dp))
+                .background(if (filled) Color.White.copy(alpha = 0.16f) else MaterialTheme.colorScheme.secondaryContainer),
+            contentAlignment = Alignment.Center
+        ) { icon() }
+        Column(Modifier.weight(1f).padding(start = 14.dp)) {
+            Text(title, style = MaterialTheme.typography.titleMedium, color = fg)
+            Text(subtitle, style = MaterialTheme.typography.bodySmall, color = sub, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
+        Icon(
+            Icons.AutoMirrored.Filled.KeyboardArrowRight,
+            contentDescription = null,
+            tint = if (filled) fg.copy(alpha = 0.7f) else MaterialTheme.colorScheme.onSurfaceVariant
+        )
     }
 }

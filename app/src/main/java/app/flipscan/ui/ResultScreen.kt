@@ -14,7 +14,6 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -55,7 +54,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -226,7 +224,7 @@ private fun ResultContent(scan: Scan, onBack: () -> Unit, onScanChanged: (Scan) 
         if (needsPermission) permission.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE) else export()
     }
 
-    Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+    Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).ambientGlow()) {
         Column(Modifier.fillMaxSize()) {
             ScreenHeader(
                 title = scan.name,
@@ -340,12 +338,7 @@ private fun ResultContent(scan: Scan, onBack: () -> Unit, onScanChanged: (Scan) 
 
 @Composable
 private fun PreviewStrip(scan: Scan, previews: List<Bitmap>, modifier: Modifier = Modifier) {
-    Surface(
-        modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.large,
-        color = MaterialTheme.colorScheme.surfaceVariant,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
-    ) {
+    Box(modifier.fillMaxWidth().glass(MaterialTheme.shapes.large, strong = true)) {
         Box(Modifier.fillMaxWidth().height(236.dp), contentAlignment = Alignment.Center) {
             if (previews.isEmpty()) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -406,19 +399,18 @@ private fun PageTools(scan: Scan, enabled: Boolean, onRotate: (Int) -> Unit, onC
     ) {
         scan.pages.indices.forEach { i ->
             val name = if (scan.mode == Mode.CARDS) (if (i == 0) "Front" else "Back") else "Page ${i + 1}"
-            Surface(
-                shape = RoundedCornerShape(50),
-                color = MaterialTheme.colorScheme.surface,
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+            Row(
+                Modifier
+                    .glass(RoundedCornerShape(50))
+                    .padding(start = 12.dp, end = 2.dp, top = 2.dp, bottom = 2.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(Modifier.padding(start = 12.dp, end = 2.dp, top = 2.dp, bottom = 2.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text(name, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    IconButton(onClick = { onRotate(i) }, enabled = enabled, modifier = Modifier.size(38.dp)) {
-                        RotateIcon(Modifier.size(18.dp), MaterialTheme.colorScheme.onSurface, label = "Rotate $name")
-                    }
-                    IconButton(onClick = { onCrop(i) }, enabled = enabled, modifier = Modifier.size(38.dp)) {
-                        CropIcon(Modifier.size(18.dp), MaterialTheme.colorScheme.onSurface, label = "Crop $name")
-                    }
+                Text(name, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                IconButton(onClick = { onRotate(i) }, enabled = enabled, modifier = Modifier.size(38.dp)) {
+                    RotateIcon(Modifier.size(18.dp), MaterialTheme.colorScheme.onSurface, label = "Rotate $name")
+                }
+                IconButton(onClick = { onCrop(i) }, enabled = enabled, modifier = Modifier.size(38.dp)) {
+                    CropIcon(Modifier.size(18.dp), MaterialTheme.colorScheme.onSurface, label = "Crop $name")
                 }
             }
         }
@@ -590,30 +582,29 @@ private fun ExportBanner(feedback: ExportFeedback, onDismiss: () -> Unit, modifi
     } else {
         MaterialTheme.colorScheme.error
     }
-    Surface(
-        modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.medium,
-        color = accent.copy(alpha = 0.10f),
-        border = BorderStroke(1.dp, accent.copy(alpha = 0.35f))
+    Row(
+        modifier
+            .fillMaxWidth()
+            .glass(MaterialTheme.shapes.medium, strong = true, accent = accent, borderAccent = accent)
+            .padding(start = 12.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Row(Modifier.padding(start = 12.dp, end = 4.dp, top = 8.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(
-                if (feedback.ok) Icons.Filled.CheckCircle else Icons.Filled.Warning,
-                contentDescription = null,
-                tint = accent,
-                modifier = Modifier.size(20.dp)
+        Icon(
+            if (feedback.ok) Icons.Filled.CheckCircle else Icons.Filled.Warning,
+            contentDescription = null,
+            tint = accent,
+            modifier = Modifier.size(20.dp)
+        )
+        Column(Modifier.weight(1f).padding(horizontal = 10.dp)) {
+            Text(feedback.title, style = MaterialTheme.typography.titleSmall, color = accent)
+            Text(
+                feedback.body,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            Column(Modifier.weight(1f).padding(horizontal = 10.dp)) {
-                Text(feedback.title, style = MaterialTheme.typography.titleSmall, color = accent)
-                Text(
-                    feedback.body,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            IconButton(onClick = onDismiss) {
-                Icon(Icons.Filled.Close, contentDescription = "Dismiss", tint = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
+        }
+        IconButton(onClick = onDismiss) {
+            Icon(Icons.Filled.Close, contentDescription = "Dismiss", tint = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }

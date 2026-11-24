@@ -1,6 +1,5 @@
 package app.flipscan.ui
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -14,7 +13,6 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -41,58 +39,57 @@ fun ScanRow(
     onActions: () -> Unit
 ) {
     val ctx = LocalContext.current
-    Surface(
-        modifier = Modifier.fillMaxWidth().pressable(onActions),
-        shape = MaterialTheme.shapes.medium,
-        color = MaterialTheme.colorScheme.surface,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+    Row(
+        Modifier.fillMaxWidth()
+            .glass(MaterialTheme.shapes.medium)
+            .pressable(onActions)
+            .padding(9.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Row(Modifier.padding(9.dp), verticalAlignment = Alignment.CenterVertically) {
-            PageThumb(
-                ScanStore.thumbFile(ctx, scan.id),
-                Modifier.size(width = 52.dp, height = 66.dp).clip(RoundedCornerShape(10.dp)),
-                maxSide = 240
+        PageThumb(
+            ScanStore.thumbFile(ctx, scan.id),
+            Modifier.size(width = 52.dp, height = 66.dp).clip(RoundedCornerShape(10.dp)),
+            maxSide = 240
+        )
+        Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
+            Text(scan.name, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            val date = DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT).format(Date(scan.createdAt))
+            Text(
+                "$date · ${scan.pages.size} page(s)",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1
             )
-            Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
-                Text(scan.name, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                val date = DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT).format(Date(scan.createdAt))
+            Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    "$date · ${scan.pages.size} page(s)",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1
-                )
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        if (scan.mode == Mode.CARDS) "ID CARD" else "DOCUMENT",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = if (scan.mode == Mode.CARDS) {
-                            MaterialTheme.colorScheme.primary
-                        } else if (isSystemInDarkTheme()) {
-                            Color(0xFF5EEAD4)
-                        } else {
-                            Color(0xFF0F766E)
-                        }
-                    )
-                    if (folderName != null) {
-                        Text(
-                            "· $folderName",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.padding(start = 6.dp)
-                        )
+                    if (scan.mode == Mode.CARDS) "ID CARD" else "DOCUMENT",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = if (scan.mode == Mode.CARDS) {
+                        MaterialTheme.colorScheme.primary
+                    } else if (isSystemInDarkTheme()) {
+                        Color(0xFF5EEAD4)
+                    } else {
+                        Color(0xFF0F766E)
                     }
+                )
+                if (folderName != null) {
+                    Text(
+                        "· $folderName",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(start = 6.dp)
+                    )
                 }
             }
-            IconButton(onClick = onActions) {
-                Icon(
-                    Icons.Filled.MoreVert,
-                    contentDescription = "Actions for ${scan.name}",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
+        }
+        IconButton(onClick = onActions) {
+            Icon(
+                Icons.Filled.MoreVert,
+                contentDescription = "Actions for ${scan.name}",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 }

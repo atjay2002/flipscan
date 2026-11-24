@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -41,6 +42,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathFillType
@@ -100,8 +102,11 @@ fun CropScreen(scan: Scan, index: Int, onClose: (changed: Boolean) -> Unit) {
             subtitle = pageName,
             onBack = { onClose(false) }
         ) {
-            TextButton(onClick = { onClose(false) }) {
-                Text("Cancel", color = Color.White.copy(alpha = 0.85f))
+            TextButton(
+                onClick = { onClose(false) },
+                modifier = Modifier.cameraGlass(RoundedCornerShape(50))
+            ) {
+                Text("Cancel", color = Color.White.copy(alpha = 0.9f))
             }
         }
 
@@ -285,8 +290,11 @@ fun CropScreen(scan: Scan, index: Int, onClose: (changed: Boolean) -> Unit) {
             ) {
                 OutlinedButton(
                     onClick = { quad = Quad(quad.tr, quad.br, quad.bl, quad.tl); activeHandle = -1 },
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
-                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.26f)),
+                    colors = ButtonDefaults.outlinedButtonColors(containerColor = Color.White.copy(alpha = 0.06f), contentColor = Color.White),
+                    border = BorderStroke(
+                        1.dp,
+                        Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.34f), Color.White.copy(alpha = 0.10f)))
+                    ),
                     shape = MaterialTheme.shapes.small
                 ) {
                     RotateIcon(Modifier.size(16.dp), Color.White, clockwise = false)
@@ -295,8 +303,11 @@ fun CropScreen(scan: Scan, index: Int, onClose: (changed: Boolean) -> Unit) {
                 }
                 OutlinedButton(
                     onClick = { quad = Quad(quad.bl, quad.tl, quad.tr, quad.br); activeHandle = -1 },
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
-                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.26f)),
+                    colors = ButtonDefaults.outlinedButtonColors(containerColor = Color.White.copy(alpha = 0.06f), contentColor = Color.White),
+                    border = BorderStroke(
+                        1.dp,
+                        Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.34f), Color.White.copy(alpha = 0.10f)))
+                    ),
                     shape = MaterialTheme.shapes.small
                 ) {
                     RotateIcon(Modifier.size(16.dp), Color.White, clockwise = true)
@@ -305,8 +316,11 @@ fun CropScreen(scan: Scan, index: Int, onClose: (changed: Boolean) -> Unit) {
                 }
                 OutlinedButton(
                     onClick = { quad = FullImage; activeHandle = -1 },
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
-                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.26f)),
+                    colors = ButtonDefaults.outlinedButtonColors(containerColor = Color.White.copy(alpha = 0.06f), contentColor = Color.White),
+                    border = BorderStroke(
+                        1.dp,
+                        Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.34f), Color.White.copy(alpha = 0.10f)))
+                    ),
                     shape = MaterialTheme.shapes.small
                 ) { Text("Reset") }
             }

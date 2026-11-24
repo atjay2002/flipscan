@@ -10,6 +10,7 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
@@ -117,6 +118,52 @@ private val AppShapes = Shapes(
 )
 
 /**
+ * Translucent surface tokens behind the "glass" look.
+ *
+ * There is deliberately no backdrop blur: RenderEffect blur needs API 31+ and costs a lot per
+ * frame, which is the last thing a long scan list needs. A translucent fill, a fine two-tone
+ * border and a short top sheen give the same sense of depth with plain draw calls.
+ */
+@Immutable
+data class GlassColors(
+    /** Normal cards and rows. */
+    val fill: Color,
+    /** Hero surfaces, floating bars and surfaces that sit over busy content. */
+    val fillStrong: Color,
+    /** Highlight that fades out over the top half of a surface. */
+    val sheen: Color,
+    /** Border gradient: a bright top edge and a quieter bottom edge. */
+    val borderTop: Color,
+    val borderBottom: Color,
+    val shadow: Color,
+    /** Very soft accent wash drawn once behind a dashboard screen. */
+    val glow: Color
+)
+
+private val LightGlass = GlassColors(
+    fill = Color(0xB8FFFFFF),          // 72% white over the near-white background
+    fillStrong = Color(0xE8FFFFFF),    // 91% white
+    sheen = Color(0x5CFFFFFF),         // 36% white
+    borderTop = Color(0xFFFFFFFF),
+    borderBottom = Color(0xFFD5DCE8),
+    shadow = Color(0x2B1E1B4B),
+    glow = Color(0x1F4F46E5)
+)
+
+private val DarkGlass = GlassColors(
+    fill = Color(0xAB17213A),          // 67% navy over the dark background
+    fillStrong = Color(0xDE1A2438),    // 87%
+    sheen = Color(0x14FFFFFF),         // 8% white
+    borderTop = Color(0x33FFFFFF),     // 20% white
+    borderBottom = Color(0x0DFFFFFF),  // 5% white
+    shadow = Color(0x66000000),
+    glow = Color(0x334F46E5)
+)
+
+/** The glass tokens for the current theme; provided by [FlipScanTheme]. */
+val LocalGlass = staticCompositionLocalOf { LightGlass }
+
+/**
  * 1 = full motion, 0 = reduce/disable. Follows the system "Remove animations" setting
  * (animator duration scale), so the app respects it without adding a preference.
  */
@@ -145,7 +192,8 @@ fun FlipScanTheme(
     content: @Composable () -> Unit
 ) {
     val scale = rememberMotionScale()
-    CompositionLocalProvider(LocalMotionScale provides scale) {
+    val glass = if (darkTheme) DarkGlass else LightGlass
+    CompositionLocalProvider(LocalMotionScale provides scale, LocalGlass provides glass) {
         MaterialTheme(
             colorScheme = if (darkTheme) DarkColors else LightColors,
             typography = AppTypography,

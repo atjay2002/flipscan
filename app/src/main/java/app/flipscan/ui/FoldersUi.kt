@@ -1,6 +1,5 @@
 package app.flipscan.ui
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -23,7 +22,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -49,46 +47,45 @@ fun FolderCard(
     onActions: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Surface(
-        modifier = modifier.width(150.dp).pressable(onOpen),
-        shape = MaterialTheme.shapes.medium,
-        color = MaterialTheme.colorScheme.surface,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+    Column(
+        modifier
+            .width(150.dp)
+            .glass(MaterialTheme.shapes.medium, accent = MaterialTheme.colorScheme.secondary)
+            .pressable(onOpen)
+            .padding(start = 12.dp, end = 4.dp, top = 6.dp, bottom = 12.dp)
     ) {
-        Column(Modifier.padding(start = 12.dp, end = 4.dp, top = 6.dp, bottom = 12.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    Modifier.size(34.dp).clip(RoundedCornerShape(11.dp))
-                        .background(MaterialTheme.colorScheme.secondaryContainer),
-                    contentAlignment = Alignment.Center
-                ) {
-                    FolderIcon(Modifier.size(18.dp), MaterialTheme.colorScheme.onSecondaryContainer)
-                }
-                Spacer(Modifier.width(4.dp))
-                Box(Modifier.weight(1f))
-                IconButton(onClick = onActions, modifier = Modifier.size(34.dp)) {
-                    Icon(
-                        Icons.Filled.MoreVert,
-                        contentDescription = "Actions for folder ${folder.name}",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(18.dp)
-                    )
-                }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                Modifier.size(34.dp).clip(RoundedCornerShape(11.dp))
+                    .background(MaterialTheme.colorScheme.secondaryContainer),
+                contentAlignment = Alignment.Center
+            ) {
+                FolderIcon(Modifier.size(18.dp), MaterialTheme.colorScheme.onSecondaryContainer)
             }
-            Text(
-                folder.name,
-                style = MaterialTheme.typography.titleSmall,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(top = 6.dp, end = 8.dp)
-            )
-            Text(
-                if (scanCount == 1) "1 scan" else "$scanCount scans",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 2.dp)
-            )
+            Spacer(Modifier.width(4.dp))
+            Box(Modifier.weight(1f))
+            IconButton(onClick = onActions, modifier = Modifier.size(34.dp)) {
+                Icon(
+                    Icons.Filled.MoreVert,
+                    contentDescription = "Actions for folder ${folder.name}",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
         }
+        Text(
+            folder.name,
+            style = MaterialTheme.typography.titleSmall,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(top = 6.dp, end = 8.dp)
+        )
+        Text(
+            if (scanCount == 1) "1 scan" else "$scanCount scans",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 2.dp)
+        )
     }
 }
 

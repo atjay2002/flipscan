@@ -1,7 +1,6 @@
 package app.flipscan.ui
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -24,7 +23,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -88,56 +86,55 @@ private fun PageRow(
     onMoveDown: () -> Unit,
     onDelete: () -> Unit
 ) {
-    Surface(
-        Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.medium,
-        color = MaterialTheme.colorScheme.surface,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .glass(MaterialTheme.shapes.medium)
+            .padding(10.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Row(Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(width = 54.dp, height = 70.dp).clip(RoundedCornerShape(10.dp))) {
-                PageThumb(file, Modifier.fillMaxSize(), maxSide = 240)
-                Text(
-                    "${index + 1}",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onPrimary,
-                    modifier = Modifier
-                        .align(Alignment.TopStart)
-                        .padding(4.dp)
-                        .clip(RoundedCornerShape(5.dp))
-                        .background(MaterialTheme.colorScheme.primary)
-                        .padding(horizontal = 5.dp, vertical = 1.dp)
-                )
-            }
-            Column(Modifier.weight(1f).padding(start = 12.dp)) {
-                Text("Page ${index + 1}", style = MaterialTheme.typography.titleSmall)
-                Text(
-                    if (canMoveUp || canMoveDown) "Use the arrows to reorder" else "Only page",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            IconButton(onClick = onMoveUp, enabled = canMoveUp) {
-                Icon(
-                    Icons.Filled.KeyboardArrowUp,
-                    contentDescription = "Move page ${index + 1} up",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            IconButton(onClick = onMoveDown, enabled = canMoveDown) {
-                Icon(
-                    Icons.Filled.KeyboardArrowDown,
-                    contentDescription = "Move page ${index + 1} down",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            IconButton(onClick = onDelete) {
-                Icon(
-                    Icons.Filled.Delete,
-                    contentDescription = "Delete page ${index + 1}",
-                    tint = MaterialTheme.colorScheme.error
-                )
-            }
+        Box(Modifier.size(width = 54.dp, height = 70.dp).clip(RoundedCornerShape(10.dp))) {
+            PageThumb(file, Modifier.fillMaxSize(), maxSide = 240)
+            Text(
+                "${index + 1}",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onPrimary,
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(4.dp)
+                    .clip(RoundedCornerShape(5.dp))
+                    .background(MaterialTheme.colorScheme.primary)
+                    .padding(horizontal = 5.dp, vertical = 1.dp)
+            )
+        }
+        Column(Modifier.weight(1f).padding(start = 12.dp)) {
+            Text("Page ${index + 1}", style = MaterialTheme.typography.titleSmall)
+            Text(
+                if (canMoveUp || canMoveDown) "Use the arrows to reorder" else "Only page",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        IconButton(onClick = onMoveUp, enabled = canMoveUp) {
+            Icon(
+                Icons.Filled.KeyboardArrowUp,
+                contentDescription = "Move page ${index + 1} up",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        IconButton(onClick = onMoveDown, enabled = canMoveDown) {
+            Icon(
+                Icons.Filled.KeyboardArrowDown,
+                contentDescription = "Move page ${index + 1} down",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        IconButton(onClick = onDelete) {
+            Icon(
+                Icons.Filled.Delete,
+                contentDescription = "Delete page ${index + 1}",
+                tint = MaterialTheme.colorScheme.error
+            )
         }
     }
 }

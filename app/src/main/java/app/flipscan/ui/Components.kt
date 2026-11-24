@@ -7,7 +7,6 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -37,7 +36,6 @@ import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
@@ -49,9 +47,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
@@ -61,6 +62,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import app.flipscan.scan.ScanCameraState
 
@@ -126,7 +128,14 @@ fun CameraHeader(
         verticalAlignment = Alignment.CenterVertically
     ) {
         IconButton(onClick = onBack) {
-            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
+            Box(Modifier.size(38.dp).cameraGlass(CircleShape), contentAlignment = Alignment.Center) {
+                Icon(
+                    Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = "Back",
+                    tint = Color.White,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
         }
         Column(Modifier.weight(1f)) {
             Text(title, style = MaterialTheme.typography.titleMedium, color = Color.White)
@@ -159,6 +168,112 @@ fun Modifier.pressable(onClick: () -> Unit, enabled: Boolean = true): Modifier {
         )
 }
 
+/**
+ * The app's glass surface: a translucent fill, a short sheen over the top third and a fine
+ * two-tone border (bright on top, quiet at the bottom).
+ *
+ * Plain draw calls only — no RenderEffect/backdrop blur — so a list can use it on every row
+ * without costing an extra layer or a per-frame blur. [accent] adds a soft tint at the top-left
+ * for surfaces that should echo a colour without changing their text contrast.
+ */
+@Composable
+fun Modifier.glass(
+    shape: Shape = MaterialTheme.shapes.large,
+    strong: Boolean = false,
+    accent: Color? = null,
+    borderAccent: Color? = null,
+    elevation: Dp = 0.dp
+): Modifier {
+    val tokens = LocalGlass.current
+    val fill = if (strong) tokens.fillStrong else tokens.fill
+    var base = this
+    if (elevation > 0.dp) {
+        base = base.shadow(elevation, shape, clip = false, ambientColor = tokens.shadow, spotColor = tokens.shadow)
+    }
+    return base
+        .clip(shape)
+        .drawBehind {
+            drawRect(
+                Brush.verticalGradient(
+                    listOf(fill, fill.copy(alpha = fill.alpha * 0.82f)),
+                    endY = size.height.coerceAtLeast(1f)
+                )
+            )
+            if (accent != null) {
+                drawRect(
+                    Brush.radialGradient(
+                        colors = listOf(accent.copy(alpha = 0.16f), Color.Transparent),
+                        center = Offset(size.width * 0.12f, 0f),
+                        radius = size.maxDimension * 0.8f + 1f
+                    )
+                )
+            }
+            // Sheen: strongest along the top edge, gone before the middle of the surface.
+            drawRect(
+                Brush.verticalGradient(
+                    0f to tokens.sheen,
+                    0.62f to Color.Transparent,
+                    endY = size.height.coerceAtLeast(1f)
+                )
+            )
+        }
+        .border(
+            1.dp,
+            Brush.verticalGradient(
+                if (borderAccent != null) {
+                    listOf(borderAccent.copy(alpha = 0.55f), borderAccent.copy(alpha = 0.22f))
+                } else {
+                    listOf(tokens.borderTop, tokens.borderBottom)
+                }
+            ),
+            shape
+        )
+}
+
+/**
+ * The same treatment in fixed camera colours. The camera chrome is always dark, so it cannot use
+ * the theme-dependent [LocalGlass] tokens.
+ */
+@Composable
+fun Modifier.cameraGlass(shape: Shape = CircleShape): Modifier = this
+    .clip(shape)
+    .drawBehind {
+        drawRect(
+            Brush.verticalGradient(
+                listOf(Color(0xB30B1220), Color(0x8C0B1220)),
+                endY = size.height.coerceAtLeast(1f)
+            )
+        )
+        drawRect(
+            Brush.verticalGradient(
+                0f to Color.White.copy(alpha = 0.10f),
+                0.62f to Color.Transparent,
+                endY = size.height.coerceAtLeast(1f)
+            )
+        )
+    }
+    .border(
+        1.dp,
+        Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.24f), Color.White.copy(alpha = 0.08f))),
+        shape
+    )
+
+/**
+ * One very soft accent wash in the top-end corner. Used on dashboard-style roots, never inside
+ * scrolling items, and drawn behind the content so text contrast is unaffected.
+ */
+@Composable
+fun Modifier.ambientGlow(color: Color = LocalGlass.current.glow): Modifier = drawBehind {
+    val w = size.width.coerceAtLeast(1f)
+    drawRect(
+        Brush.radialGradient(
+            colors = listOf(color, Color.Transparent),
+            center = Offset(w * 0.92f, -size.height * 0.04f),
+            radius = w * 1.15f
+        )
+    )
+}
+
 /** A flat, bordered surface used for grouped controls and list rows. */
 @Composable
 fun Panel(
@@ -166,14 +281,10 @@ fun Panel(
     padding: Int = 16,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    Surface(
-        modifier = modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.large,
-        color = MaterialTheme.colorScheme.surface,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
-    ) {
-        Column(Modifier.padding(padding.dp), content = content)
-    }
+    Column(
+        modifier.fillMaxWidth().glass(MaterialTheme.shapes.large).padding(padding.dp),
+        content = content
+    )
 }
 
 @Composable
@@ -227,9 +338,7 @@ fun AutoCaptureToggle(checked: Boolean, modifier: Modifier = Modifier, onChange:
 fun StatusPill(text: String, modifier: Modifier = Modifier, accent: Color = Color.Transparent) {
     Row(
         modifier
-            .clip(RoundedCornerShape(50))
-            .background(Color(0xB30B1220))
-            .border(1.dp, Color.White.copy(alpha = 0.14f), RoundedCornerShape(50))
+            .cameraGlass(RoundedCornerShape(50))
             .padding(horizontal = 14.dp, vertical = 7.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -271,7 +380,22 @@ fun FlashToggle(cam: ScanCameraState, modifier: Modifier = Modifier) {
             .size(46.dp)
             .clip(CircleShape)
             .background(bg)
-            .border(1.dp, Color.White.copy(alpha = 0.26f), CircleShape)
+            .drawBehind {
+                drawRect(
+                    Brush.verticalGradient(
+                        0f to Color.White.copy(alpha = 0.16f),
+                        0.7f to Color.Transparent,
+                        endY = size.height.coerceAtLeast(1f)
+                    )
+                )
+            }
+            .border(
+                1.dp,
+                Brush.verticalGradient(
+                    listOf(Color.White.copy(alpha = 0.34f), Color.White.copy(alpha = 0.12f))
+                ),
+                CircleShape
+            )
             .semantics { contentDescription = description }
             .clickable(role = Role.Button) {
                 when (available) {
@@ -391,6 +515,11 @@ fun StepPill(number: Int, label: String, done: Boolean, active: Boolean, modifie
         modifier
             .clip(RoundedCornerShape(50))
             .background(bg)
+            .border(
+                1.dp,
+                Color.White.copy(alpha = if (done || active) 0.28f else 0.12f),
+                RoundedCornerShape(50)
+            )
             .padding(horizontal = 12.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -412,8 +541,7 @@ fun CountBadge(text: String, modifier: Modifier = Modifier) {
         style = MaterialTheme.typography.labelMedium,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = modifier
-            .clip(RoundedCornerShape(50))
-            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .glass(RoundedCornerShape(50))
             .padding(horizontal = 10.dp, vertical = 5.dp)
     )
 }
@@ -455,13 +583,12 @@ fun BottomActionBar(
     modifier: Modifier = Modifier,
     content: @Composable RowScope.() -> Unit
 ) {
-    Surface(
-        modifier = modifier.fillMaxWidth(),
-        color = MaterialTheme.colorScheme.surface,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
-    ) {
+    Box(modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp)) {
         Row(
-            Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp),
+            Modifier
+                .fillMaxWidth()
+                .glass(MaterialTheme.shapes.large, strong = true, elevation = 8.dp)
+                .padding(horizontal = 12.dp, vertical = 10.dp),
             horizontalArrangement = Arrangement.spacedBy(10.dp),
             verticalAlignment = Alignment.CenterVertically,
             content = content

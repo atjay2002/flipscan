@@ -259,7 +259,7 @@ private fun Slot(label: String, thumb: Bitmap?, isActive: Boolean, modifier: Mod
     Box(
         modifier
             .clip(shape)
-            .background(CameraCard)
+            .background(Brush.verticalGradient(listOf(Color(0xFF1E2A45), CameraCard)))
             .border(if (isActive) 2.dp else 1.dp, borderColor, shape)
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center
