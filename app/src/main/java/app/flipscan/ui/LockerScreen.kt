@@ -326,7 +326,7 @@ fun LockerHomeScreen(
                 }
 
                 item(key = "pins") {
-                    DigitalPinsSection(docs = docs, onOpen = onOpen)
+                    DigitalPinsSection(docs = docs)
                 }
                 item(key = "privacy") {
                     Text(

@@ -57,7 +57,7 @@ private const val REVEAL_MS = 20_000L
  * always shown masked until the user asks for it, and it hides itself again after a short while.
  */
 @Composable
-fun DigitalPinsSection(docs: List<LockerDoc>, onOpen: (String) -> Unit) {
+fun DigitalPinsSection(docs: List<LockerDoc>) {
     val pins = docs.filter { it.number != null }
     Column(Modifier.fillMaxWidth().padding(top = 12.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -91,20 +91,22 @@ fun DigitalPinsSection(docs: List<LockerDoc>, onOpen: (String) -> Unit) {
             }
         } else {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                pins.forEach { doc -> DigitalPinRow(doc, onOpen = { onOpen(doc.id) }) }
+                pins.forEach { doc -> DigitalPinRow(doc) }
             }
         }
     }
 }
 
 @Composable
-private fun DigitalPinRow(doc: LockerDoc, onOpen: () -> Unit) {
+private fun DigitalPinRow(doc: LockerDoc) {
     val number = doc.number ?: return
+    val ctx = LocalContext.current
     var revealed by remember(doc.id, number) { mutableStateOf(false) }
     RevealTimeout(revealed) { revealed = false }
 
     Row(
-        Modifier.fillMaxWidth().glass(MaterialTheme.shapes.medium).pressable(onOpen)
+        Modifier.fillMaxWidth().glass(MaterialTheme.shapes.medium)
+            .pressable(onClick = { revealed = !revealed })
             .padding(horizontal = 12.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -126,6 +128,14 @@ private fun DigitalPinRow(doc: LockerDoc, onOpen: () -> Unit) {
         }
         TextButton(onClick = { revealed = !revealed }) {
             Text(if (revealed) "Hide" else "Show")
+        }
+        TextButton(
+            onClick = {
+                copyPin(ctx, number)
+                revealed = false
+            }
+        ) {
+            Text("Copy")
         }
     }
 }

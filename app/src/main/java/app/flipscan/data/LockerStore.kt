@@ -38,7 +38,9 @@ enum class LockerDocType(
 /**
  * One protected document. Names, types, dates and the optional Digital Pin live in the encrypted
  * index; the pages live encrypted next to it. [numberChecked] records that on-device OCR has already
- * looked at this document, so opening it again does not re-run recognition.
+ * looked at this document, so opening it again does not re-run recognition. [exports] records
+ * plaintext copies that have been written to Downloads/FlipScan (export breaks the locker's
+ * encryption boundary — the exported file is no longer protected).
  */
 data class LockerDoc(
     val id: String,
@@ -49,7 +51,8 @@ data class LockerDoc(
     val number: String? = null,
     val numberPage: Int? = null,
     val numberVerified: Boolean = false,
-    val numberChecked: Boolean = false
+    val numberChecked: Boolean = false,
+    val exports: List<SavedExport> = emptyList()
 )
 
 /**
@@ -195,6 +198,18 @@ object LockerStore {
         val updated = docs[at].copy(numberChecked = true)
         writeIndex(ctx, docs.toMutableList().also { it[at] = updated })
         updated
+    }
+
+    /** Records that a plaintext export of this document now exists in Downloads/FlipScan. */
+    fun addExport(ctx: Context, id: String, saved: SavedExport): LockerDoc? = synchronized(lock) {
+        val docs = readIndexOrThrow(ctx)
+        val at = docs.indexOfFirst { it.id == id }
+        if (at < 0) return null
+        val updated = docs[at].copy(
+            exports = (listOf(saved) + docs[at].exports).distinctBy { it.uri }.take(8)
+        )
+        writeIndex(ctx, docs.toMutableList().also { it[at] = updated })
+        return updated
     }
 
     fun delete(ctx: Context, id: String): Boolean = synchronized(lock) {
@@ -359,6 +374,11 @@ object LockerStore {
             d.numberPage?.let { o.put("numberPage", it) }
             if (d.numberVerified) o.put("numberVerified", true)
             if (d.numberChecked) o.put("numberChecked", true)
+            if (d.exports.isNotEmpty()) {
+                o.put("exports", JSONArray(d.exports.map {
+                    JSONObject().put("name", it.name).put("uri", it.uri).put("mime", it.mime)
+                }))
+            }
             arr.put(o)
         }
         writeEncrypted(indexFile(ctx), arr.toString().toByteArray(Charsets.UTF_8))
@@ -371,6 +391,18 @@ object LockerStore {
         val arr = JSONArray(String(plain, Charsets.UTF_8))
         return (0 until arr.length()).map { i ->
             val o = arr.getJSONObject(i)
+            val exports = if (o.has("exports")) {
+                val e = o.getJSONArray("exports")
+                (0 until e.length()).map { j ->
+                    val eo = e.getJSONObject(j)
+                    SavedExport(
+                        name = eo.getString("name"),
+                        uri = eo.getString("uri"),
+                        mime = eo.getString("mime"),
+                        at = eo.optLong("at", 0L)
+                    )
+                }
+            } else emptyList()
             LockerDoc(
                 id = o.getString("id"),
                 type = LockerDocType.from(o.optString("type")),
@@ -380,7 +412,8 @@ object LockerStore {
                 number = o.optString("number", "").ifEmpty { null },
                 numberPage = if (o.has("numberPage")) o.optInt("numberPage") else null,
                 numberVerified = o.optBoolean("numberVerified", false),
-                numberChecked = o.optBoolean("numberChecked", false)
+                numberChecked = o.optBoolean("numberChecked", false),
+                exports = exports
             )
         }.sortedByDescending { it.createdAt }
     }

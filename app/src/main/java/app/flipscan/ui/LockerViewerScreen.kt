@@ -1,5 +1,7 @@
 package app.flipscan.ui
 
+import android.content.Intent
+import android.net.Uri
 import android.graphics.Bitmap
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Image
@@ -26,11 +28,13 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -51,11 +55,21 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import app.flipscan.data.Downloads
+import app.flipscan.data.ExportSettings
+import app.flipscan.data.Format
 import app.flipscan.data.LockerDoc
+import app.flipscan.data.LockerDocType
 import app.flipscan.data.LockerEdit
 import app.flipscan.data.LockerOcr
 import app.flipscan.data.LockerStore
+import app.flipscan.data.SavedExport
+import app.flipscan.data.SettingsStore
+import app.flipscan.export.Exporter
+import app.flipscan.export.Share
+import java.io.File
 import app.flipscan.util.decodeSampled
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -88,6 +102,10 @@ fun LockerViewerScreen(
     var deleting by remember { mutableStateOf(false) }
     var canCrop by remember { mutableStateOf(false) }
     var reading by remember(docId) { mutableStateOf(false) }
+    var exporting by remember { mutableStateOf(false) }
+    var exportFormat by remember { mutableStateOf(Format.PDF) }
+    var exportName by remember(docId) { mutableStateOf(doc?.name ?: "") }
+    var showingExportDialog by remember { mutableStateOf(false) }
     BackHandler(onBack = onBack)
 
     // Reading a number is on-device OCR and happens once per document; the flag lives in the
@@ -149,6 +167,120 @@ fun LockerViewerScreen(
             val updated = runCatching { LockerOcr.detectAndStore(ctx, docId) }.getOrNull()
             reading = false
             if (updated != null) doc = updated else message = "Could not read the number from this page."
+        }
+    }
+
+    /** Decrypts all pages to temp files under cacheDir/locker_export/<docId>/. */
+    fun decryptPagesToTemp(doc: LockerDoc): List<File> {
+        val exportDir = File(ctx.cacheDir, "locker_export/${doc.id}")
+        exportDir.deleteRecursively()
+        exportDir.mkdirs()
+        return (0 until doc.pages).map { i ->
+            val out = File(exportDir, "page_$i.jpg")
+            LockerStore.pageBytes(ctx, doc.id, i)?.let { out.writeBytes(it) }
+            out
+        }.filter { it.exists() }
+    }
+
+    fun export() {
+        val current = doc ?: return
+        val pages = decryptPagesToTemp(current)
+        if (pages.isEmpty()) {
+            message = "Could not decrypt pages for export."
+            return
+        }
+        exporting = true
+        message = null
+        scope.launch {
+            try {
+                val settings = SettingsStore.load(ctx)
+                val res = withContext(Dispatchers.Default) {
+                    Exporter.renderPages(
+                        ctx = ctx,
+                        pages = pages,
+                        name = current.name,
+                        s = settings.copy(format = exportFormat),
+                        baseName = exportName.ifEmpty { current.name },
+                        cardMode = current.type.cards
+                    )
+                }
+                val saved = withContext(Dispatchers.IO) { Downloads.save(ctx, res.files) }
+                withContext(Dispatchers.Main) {
+                    exporting = false
+                    showingExportDialog = false
+                    saved.forEach { s ->
+                        val updated = LockerStore.addExport(
+                            ctx,
+                            current.id,
+                            SavedExport(name = s.name, uri = s.uri, mime = s.mime, at = System.currentTimeMillis())
+                        )
+                        if (updated != null) doc = updated
+                    }
+                    val names = saved.take(3).joinToString("\n") { it.name } +
+                        if (saved.size > 3) "\n+${saved.size - 3} more" else ""
+                    message = "Saved to Downloads/FlipScan\n$names"
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    exporting = false
+                    message = "Export failed: ${e.message ?: "Unknown error"}"
+                }
+            } finally {
+                // Always clean up plaintext temp files.
+                pages.forEach { it.delete() }
+                pages.firstOrNull()?.parentFile?.deleteRecursively()
+            }
+        }
+    }
+
+    fun share() {
+        val current = doc ?: return
+        val pages = decryptPagesToTemp(current)
+        if (pages.isEmpty()) {
+            message = "Could not decrypt pages for sharing."
+            return
+        }
+        exporting = true
+        message = null
+        scope.launch {
+            try {
+                val settings = SettingsStore.load(ctx)
+                val files = withContext(Dispatchers.Default) {
+                    Exporter.renderPages(
+                        ctx = ctx,
+                        pages = pages,
+                        name = current.name,
+                        s = settings.copy(format = exportFormat),
+                        baseName = exportName.ifEmpty { current.name },
+                        cardMode = current.type.cards
+                    ).files
+                }
+                withContext(Dispatchers.Main) {
+                    Share.send(ctx, files)
+                    exporting = false
+                    showingExportDialog = false
+                    message = "${files.size} file(s) ready to share."
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    exporting = false
+                    message = "Could not share: ${e.message ?: "Unknown error"}"
+                }
+            } finally {
+                pages.forEach { it.delete() }
+                pages.firstOrNull()?.parentFile?.deleteRecursively()
+            }
+        }
+    }
+
+    fun openExport(saved: SavedExport) {
+        val uri = Uri.parse(saved.uri)
+        val intent = Intent(Intent.ACTION_VIEW).apply {
+            setDataAndType(uri, saved.mime)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        if (runCatching { ctx.startActivity(intent) }.isFailure) {
+            message = "No app can open this file type."
         }
     }
 
@@ -221,13 +353,13 @@ fun LockerViewerScreen(
                             .padding(horizontal = 16.dp, vertical = 6.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        ToolButton("Rotate", enabled = busy == null, onClick = ::rotate) {
+                        ToolButton("Rotate", enabled = busy == null && !exporting, onClick = ::rotate) {
                             RotateIcon(Modifier.size(17.dp), MaterialTheme.colorScheme.onSurface)
                         }
-                        ToolButton("Crop", enabled = busy == null && canCrop, onClick = ::startCrop) {
+                        ToolButton("Crop", enabled = busy == null && !exporting && canCrop, onClick = ::startCrop) {
                             CropIcon(Modifier.size(17.dp), MaterialTheme.colorScheme.onSurface)
                         }
-                        ToolButton("Rename", enabled = busy == null, onClick = { renaming = true }) {
+                        ToolButton("Rename", enabled = busy == null && !exporting, onClick = { renaming = true }) {
                             Icon(
                                 Icons.Filled.Edit,
                                 contentDescription = null,
@@ -235,7 +367,18 @@ fun LockerViewerScreen(
                                 modifier = Modifier.size(17.dp)
                             )
                         }
-                        ToolButton("Delete", enabled = busy == null, onClick = { deleting = true }) {
+                        ToolButton("Export", enabled = busy == null && !exporting, onClick = { showingExportDialog = true }) {
+                            Box(Modifier.size(17.dp))
+                        }
+                        ToolButton("Share", enabled = busy == null && !exporting, onClick = { showingExportDialog = true }) {
+                            Icon(
+                                Icons.Filled.Share,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.size(17.dp)
+                            )
+                        }
+                        ToolButton("Delete", enabled = busy == null && !exporting, onClick = { deleting = true }) {
                             Icon(
                                 Icons.Filled.Delete,
                                 contentDescription = null,
@@ -263,10 +406,57 @@ fun LockerViewerScreen(
                             onChanged = { doc = it },
                             onError = { message = it }
                         )
+
+                        // Previously exported files that can be opened again.
+                        if (current.exports.isNotEmpty()) {
+                            Column(
+                                Modifier.fillMaxWidth().padding(horizontal = 18.dp).padding(top = 8.dp)
+                            ) {
+                                Text(
+                                    "Exported copies",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(bottom = 4.dp)
+                                )
+                                Column(Modifier.fillMaxWidth()) {
+                                    current.exports.forEach { saved ->
+                                        Row(
+                                            Modifier.fillMaxWidth()
+                                                .glass(MaterialTheme.shapes.medium)
+                                                .pressable(onClick = { openExport(saved) })
+                                                .padding(horizontal = 12.dp, vertical = 8.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Box(Modifier.size(17.dp))
+                                            Spacer(Modifier.width(8.dp))
+                                            Column(Modifier.weight(1f)) {
+                                                Text(
+                                                    saved.name,
+                                                    style = MaterialTheme.typography.bodyMedium,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                                Text(
+                                                    saved.mime,
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                            }
+                                            Icon(
+                                                Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
 
                     Text(
-                        "Encrypted at rest · never exported, shared or listed in Downloads.",
+                        "Encrypted at rest. Exporting creates a plaintext copy in Downloads/FlipScan; " +
+                            "the copy is not protected by the locker.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         textAlign = TextAlign.Center,
@@ -277,6 +467,60 @@ fun LockerViewerScreen(
         }
 
         busy?.let { BusyOverlay(it, Modifier.fillMaxSize()) }
+
+        if (showingExportDialog) {
+            val current = doc
+            AlertDialog(
+                onDismissRequest = { showingExportDialog = false },
+                title = { Text("Export document") },
+                text = {
+                    Column(Modifier.fillMaxWidth()) {
+                        OutlinedTextField(
+                            value = exportName,
+                            onValueChange = { exportName = it },
+                            singleLine = true,
+                            label = { Text("File name") },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Row(
+                            Modifier.fillMaxWidth().padding(top = 8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Text("Format", style = MaterialTheme.typography.labelSmall)
+                            Spacer(Modifier.width(8.dp))
+                            FormatButton("PDF", selected = exportFormat == Format.PDF) {
+                                exportFormat = Format.PDF
+                            }
+                            FormatButton("JPG", selected = exportFormat == Format.JPG) {
+                                exportFormat = Format.JPG
+                            }
+                            FormatButton("PNG", selected = exportFormat == Format.PNG) {
+                                exportFormat = Format.PNG
+                            }
+                        }
+                    }
+                },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            showingExportDialog = false
+                            export()
+                        }
+                    ) { Text("Export & Save") }
+                },
+                dismissButton = {
+                    Row {
+                        TextButton(
+                            onClick = {
+                                showingExportDialog = false
+                                share()
+                            }
+                        ) { Text("Share") }
+                        TextButton(onClick = { showingExportDialog = false }) { Text("Cancel") }
+                    }
+                }
+            )
+        }
 
         cropEdit?.let { edit ->
             CropScreen(
@@ -456,6 +700,29 @@ private fun ToolButton(
         icon()
         Spacer(Modifier.width(7.dp))
         Text(label, style = MaterialTheme.typography.labelLarge)
+    }
+}
+
+@Composable
+private fun FormatButton(
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit
+) {
+    val color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+    Box(
+        Modifier
+            .size(32.dp)
+            .pressable(onClick = onClick)
+            .background(if (selected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent)
+            .clip(RoundedCornerShape(8.dp)),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            label,
+            style = MaterialTheme.typography.labelSmall.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Bold),
+            color = color
+        )
     }
 }
 

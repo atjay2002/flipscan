@@ -180,4 +180,57 @@ object Exporter {
         }
         return Result(files, notes.firstOrNull())
     }
+
+    /**
+     * Same as [render], but works on a plain list of page files instead of a [Scan].
+     * Used for locker document export: pages are decrypted to temp files first, then rendered,
+     * then the temp files are deleted by the caller. [cardMode] lays out two pages side-by-side
+     * like an ID card; otherwise one sheet per page.
+     */
+    fun renderPages(
+        ctx: Context,
+        pages: List<File>,
+        name: String,
+        s: ExportSettings,
+        baseName: String? = null,
+        cardMode: Boolean = false
+    ): Result {
+        val sheets: List<Sheet> = if (cardMode && pages.size >= 2) {
+            val sizes = pages.take(2).map { PageLoader.size(it) }
+            listOf(Layouts.cards(s, sizes) to pages.take(2))
+        } else {
+            pages.map { f ->
+                val (w, h) = PageLoader.size(f)
+                Layouts.document(w.coerceAtLeast(1), h.coerceAtLeast(1), s) to listOf(f)
+            }
+        }
+        val dir = exportDir(ctx)
+        val base = safeName(baseName ?: name)
+        val dpi = if (cardMode) 300 else 200
+        val target = s.targetKb * 1024
+        val files = mutableListOf<File>()
+        val notes = mutableListOf<String>()
+        fun limitNote(bytes: ByteArray) {
+            notes += "Could not reach ${s.targetKb} KB; smallest result is ${bytes.size / 1024} KB"
+        }
+
+        if (s.format == Format.PDF) {
+            val (bytes, reached) = pdfToTarget(sheets, s.filter, dpi, target)
+            files += File(dir, "$base.pdf").also { it.writeBytes(bytes) }
+            if (!reached) limitNote(bytes)
+        } else {
+            sheets.forEachIndexed { i, (plan, pageFiles) ->
+                val bmp = renderBitmap(plan, pageFiles, dpi, s.filter)
+                try {
+                    val (bytes, reached) = encode(bmp, s.format, target)
+                    val name = if (sheets.size == 1) base else "${base}_${i + 1}"
+                    files += File(dir, "$name.${s.format.ext}").also { it.writeBytes(bytes) }
+                    if (!reached) limitNote(bytes)
+                } finally {
+                    bmp.recycle()
+                }
+            }
+        }
+        return Result(files, notes.firstOrNull())
+    }
 }
