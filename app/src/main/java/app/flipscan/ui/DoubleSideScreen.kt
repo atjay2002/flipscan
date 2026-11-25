@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -88,6 +89,8 @@ private fun DoubleSideContent(
     subtitle: String,
     onDone: (List<File>) -> Unit
 ) {
+    // The preview stays full bleed; only the controls clear the system bars.
+    LightSystemBars()
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
     val cam = rememberScanCameraState(cardMode = true)
@@ -206,7 +209,7 @@ private fun DoubleSideContent(
         }
 
         Column(
-            Modifier.fillMaxWidth().padding(horizontal = 18.dp).padding(bottom = 20.dp),
+            Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 18.dp).padding(bottom = 20.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             if (active >= 0) {

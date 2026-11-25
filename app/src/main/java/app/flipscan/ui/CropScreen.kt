@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -88,6 +89,8 @@ fun CropScreen(
 ) {
     val scope = rememberCoroutineScope()
     BackHandler { onClose(false) }
+    // Dark editing surface in both themes: keep the system bar icons light over it.
+    LightSystemBars()
 
     val data by produceState<CropData?>(null, page) {
         value = if (page == null) {
@@ -342,7 +345,7 @@ fun CropScreen(
                 },
                 enabled = !busy,
                 shape = MaterialTheme.shapes.small,
-                modifier = Modifier.fillMaxWidth().padding(start = 14.dp, end = 14.dp, bottom = 16.dp, top = 2.dp)
+                modifier = Modifier.fillMaxWidth().navigationBarsPadding().padding(start = 14.dp, end = 14.dp, bottom = 16.dp, top = 2.dp)
             ) { Text("Apply crop") }
         }
     }

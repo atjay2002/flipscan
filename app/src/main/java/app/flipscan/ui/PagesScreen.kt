@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -37,7 +38,7 @@ import java.io.File
 fun PagesScreen(pages: androidx.compose.runtime.snapshots.SnapshotStateList<File>, onAddMore: () -> Unit, onSave: () -> Unit) {
     BackHandler(onBack = onAddMore) // back = return to the camera, nothing is lost
 
-    Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+    Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).systemBarsPadding()) {
         ScreenHeader(
             title = "Review pages",
             subtitle = if (pages.isEmpty()) "No pages yet" else "${pages.size} page(s) · reorder or delete before saving",

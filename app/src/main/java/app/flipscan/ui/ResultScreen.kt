@@ -32,6 +32,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.rememberScrollState
@@ -107,7 +108,7 @@ fun ResultScreen(scanId: String, onBack: () -> Unit) {
     LaunchedEffect(scanId) { scan = withContext(Dispatchers.IO) { ScanStore.get(ctx, scanId) } }
     val s = scan
     if (s == null) {
-        Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background), contentAlignment = Alignment.Center) {
+        Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).systemBarsPadding(), contentAlignment = Alignment.Center) {
             CircularProgressIndicator()
         }
     } else {
@@ -225,7 +226,8 @@ private fun ResultContent(scan: Scan, onBack: () -> Unit, onScanChanged: (Scan) 
     }
 
     Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).ambientGlow()) {
-        Column(Modifier.fillMaxSize()) {
+        // The crop editor is a full-screen dark overlay, so it lives outside these insets.
+        Column(Modifier.fillMaxSize().systemBarsPadding()) {
             ScreenHeader(
                 title = scan.name,
                 subtitle = (if (scan.mode == Mode.CARDS) "ID card" else "Document") + " · ${scan.pages.size} page(s)",

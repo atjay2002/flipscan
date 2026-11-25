@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -108,7 +109,7 @@ fun LockerGateScreen(onUnlocked: () -> Unit, onBack: () -> Unit) {
         )
     }
 
-    Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).ambientGlow()) {
+    Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).ambientGlow().systemBarsPadding()) {
         Column(Modifier.fillMaxSize()) {
             ScreenHeader(
                 title = "Digital Locker",
@@ -272,7 +273,7 @@ fun LockerHomeScreen(
         loaded = true
     }
 
-    Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).ambientGlow()) {
+    Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).ambientGlow().systemBarsPadding()) {
         Column(Modifier.fillMaxSize()) {
             ScreenHeader(
                 title = "Digital Locker",

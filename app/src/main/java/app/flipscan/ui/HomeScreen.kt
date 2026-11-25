@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -94,7 +95,7 @@ fun HomeScreen(
     val enterMs = motionMs(420)
     LaunchedEffect(Unit) { enter.animateTo(1f, tween(enterMs, easing = FastOutSlowInEasing)) }
 
-    Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).ambientGlow()) {
+    Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).ambientGlow().systemBarsPadding()) {
         LazyColumn(
             Modifier.fillMaxSize().graphicsLayer {
                 alpha = enter.value

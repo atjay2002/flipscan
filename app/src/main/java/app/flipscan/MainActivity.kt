@@ -7,6 +7,7 @@ import android.os.SystemClock
 import android.view.WindowManager
 import android.widget.Toast
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
@@ -81,6 +82,10 @@ sealed interface Screen {
 
 class MainActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
+        // Android 15+ draws every app that targets API 35+ edge to edge and stops insetting the
+        // window for it. Ask for the same behaviour on older versions so one set of screen-level
+        // insets is correct everywhere, and so the system bar icons follow the light/dark theme.
+        enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         setContent {
             FlipScanTheme {

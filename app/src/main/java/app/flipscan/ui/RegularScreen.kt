@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -75,6 +76,8 @@ private fun RegularContent(
     onDone: () -> Unit,
     onBack: () -> Unit
 ) {
+    // The preview stays full bleed; only the controls clear the system bars.
+    LightSystemBars()
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
     val cam = rememberScanCameraState(cardMode = false)
@@ -133,7 +136,7 @@ private fun RegularContent(
             FlashToggle(cam, Modifier.padding(end = 4.dp))
         }
 
-        Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth()) {
+        Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth().navigationBarsPadding()) {
             Surface(
                 shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
                 color = Color(0xF20E1728),

@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -41,6 +42,7 @@ import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -64,6 +66,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.core.view.WindowCompat
 import app.flipscan.scan.ScanCameraState
 
 /**
@@ -124,7 +127,8 @@ fun CameraHeader(
     actions: @Composable RowScope.() -> Unit = {}
 ) {
     Row(
-        modifier.fillMaxWidth().padding(start = 6.dp, end = 10.dp, top = 6.dp, bottom = 6.dp),
+        // Camera screens run edge to edge, so this bar clears the status bar itself.
+        modifier.fillMaxWidth().statusBarsPadding().padding(start = 6.dp, end = 10.dp, top = 6.dp, bottom = 6.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         IconButton(onClick = onBack) {
@@ -144,6 +148,35 @@ fun CameraHeader(
             }
         }
         actions()
+    }
+}
+
+/**
+ * Keeps the status and navigation bar icons light while a camera screen is on top.
+ *
+ * The app is edge to edge (Android 15+ forces it for apps targeting API 35+), so the system bars
+ * are transparent and their icons are drawn over our own UI. Camera screens are dark in both
+ * themes, so the theme-driven dark icons would vanish on them. The previous appearance is
+ * restored when the screen leaves composition.
+ */
+@Composable
+fun LightSystemBars() {
+    val ctx = LocalContext.current
+    DisposableEffect(ctx) {
+        val window = ctx.findFragmentActivity()?.window
+        if (window == null) {
+            onDispose { }
+        } else {
+            val controller = WindowCompat.getInsetsController(window, window.decorView)
+            val previousStatus = controller.isAppearanceLightStatusBars
+            val previousNavigation = controller.isAppearanceLightNavigationBars
+            controller.isAppearanceLightStatusBars = false
+            controller.isAppearanceLightNavigationBars = false
+            onDispose {
+                controller.isAppearanceLightStatusBars = previousStatus
+                controller.isAppearanceLightNavigationBars = previousNavigation
+            }
+        }
     }
 }
 

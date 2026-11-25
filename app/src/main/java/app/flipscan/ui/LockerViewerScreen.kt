@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -306,7 +307,8 @@ fun LockerViewerScreen(
     }
 
     Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).ambientGlow()) {
-        Column(Modifier.fillMaxSize()) {
+        // The crop editor is a full-screen dark overlay, so it lives outside these insets.
+        Column(Modifier.fillMaxSize().systemBarsPadding()) {
             ScreenHeader(
                 title = doc?.name ?: "Secure document",
                 subtitle = doc?.let {

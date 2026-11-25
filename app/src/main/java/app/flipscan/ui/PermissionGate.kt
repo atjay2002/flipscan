@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
@@ -56,7 +57,7 @@ fun CameraPermissionGate(content: @Composable () -> Unit) {
         content()
     } else {
         Box(
-            Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(24.dp),
+            Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).systemBarsPadding().padding(24.dp),
             contentAlignment = Alignment.Center
         ) {
             Surface(
