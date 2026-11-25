@@ -3,12 +3,12 @@ package app.flipscan.data
 import android.content.ContentValues
 import android.content.Context
 import android.media.MediaScannerConnection
-import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
 import androidx.annotation.RequiresApi
 import androidx.core.content.FileProvider
+import androidx.core.net.toUri
 import java.io.File
 import java.io.IOException
 
@@ -102,6 +102,6 @@ object Downloads {
     /** True when the saved file is still readable (the user may have deleted it from Downloads). */
     fun exists(ctx: Context, saved: SavedExport): Boolean =
         runCatching {
-            ctx.contentResolver.openAssetFileDescriptor(Uri.parse(saved.uri), "r")?.use { true } ?: false
+            ctx.contentResolver.openAssetFileDescriptor(saved.uri.toUri(), "r")?.use { true } ?: false
         }.getOrDefault(false)
 }

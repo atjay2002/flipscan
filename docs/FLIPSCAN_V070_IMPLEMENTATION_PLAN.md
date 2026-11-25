@@ -697,6 +697,63 @@ Without this baseline, "the output is unchanged" cannot be demonstrated, and a r
 
 ## 14. Revision history
 
+### Revision 5 — 25 November 2026 — remaining release blockers closed
+
+Scope: WP-02, WP-04, WP-17 (16 KB page sizes), the version bump, and the lint cleanup. Device testing was
+explicitly deferred by the owner, so **nothing in this revision was verified at runtime**.
+
+**1. WP-02 — release signing, without committing secrets.** `app/build.gradle.kts` now reads signing
+material from a git-ignored `keystore.properties` in the repository root, or from the `FLIPSCAN_STORE_FILE`,
+`FLIPSCAN_STORE_PASSWORD`, `FLIPSCAN_KEY_ALIAS` and `FLIPSCAN_KEY_PASSWORD` environment variables. When
+neither is present the release build stays unsigned and every task still succeeds, so a fresh clone behaves
+exactly as before. `assembleRelease` now emits a signed `app-release.apk` and `bundleRelease` a signed AAB;
+`apksigner verify` reports the same certificate as every previous build (`CN=FlipScan, O=FlipScan, C=IN`,
+unchanged SHA-256). No key, password or properties file is tracked.
+
+**2. WP-04 — cached exports are no longer wiped on every render.** `Exporter.exportDir` used to delete the
+whole `cache/exports` tree at the start of each render, which removed the files a share sheet opened a
+moment earlier was still reading. Each render now gets `cache/exports/<timestamp>-<uuid>/`, directories
+older than six hours are pruned, and `Exporter.clearTemps` removes the tree at start-up.
+
+**3. WP-17 — 16 KB page-size support (was "tracked, not scheduled").** Measured first, then fixed:
+
+| Library (arm64-v8a) | Before | Owner |
+|---|---|---|
+| `libopencv_java4.so`, `libc++_shared.so` | `0x1000` (4 KB) | OpenCV 4.9.0 |
+| `libimage_processing_util_jni.so` | `0x1000` (4 KB) | CameraX 1.3.4 |
+| `libmlkit_google_ocr_pipeline.so`, `libandroidx.graphics.path.so` | `0x4000` (16 KB) | already compliant |
+
+Upgrading OpenCV to **4.12.0** and CameraX to **1.7.0** made every 64-bit library `0x4000`; the release
+APK now passes `zipalign -c -P 16 -v 4`. Two forced consequences: CameraX 1.7 ships Kotlin 2.2 metadata, so
+Kotlin moved 2.0.20 → **2.2.20**, and AGP moved 8.9.1 → **8.10.1** because AGP 8.9's bundled R8 cannot parse
+Kotlin 2.2 metadata (Google's Kotlin/AGP table requires R8 8.10.21 for Kotlin 2.2). Gradle 8.11.1 still
+satisfies AGP 8.10. Remaining 4 KB entries are 32-bit `armeabi-v7a` only, which the Play requirement does
+not cover because 16 KB devices are 64-bit.
+
+**4. Version.** `versionCode 8 / 0.7.0` → **`versionCode 9 / 0.8.0`**.
+
+**5. Lint.** 20 → **5 warnings, 0 errors**. The eight `UseKtx` findings were fixed in code (`String.toUri`,
+`Bitmap.scale`, `createBitmap`, `SharedPreferences.edit`). `LockedOrientationActivity` and `DiscouragedApi`
+are suppressed on the activity with a comment (portrait is a product decision); `ChromeOsAbiSupport` is
+disabled in the `lint` block (release is ARM-only by design); `DataExtractionRules` was fixed properly by
+adding `res/xml/data_extraction_rules.xml` plus `android:fullBackupContent="false"`. What remains is four
+`GradleDependency` notices and one `AndroidGradlePluginVersion` notice.
+
+**6. The AAB growth is explained.** Comparing the previous signed 0.7.0 AAB with the new one:
+`BUNDLE-METADATA/com.android.tools.build.obfuscation/proguard.map` grew 26.5 → 44.2 MB uncompressed
+(+1.5 MB compressed) and `base/resources.pb` +128 KB. The mapping file is Play upload metadata and is not
+downloaded by devices, so the earlier "unexplained +1.5 MB" was never a user-facing size change. The
+0.8.0 AAB is larger for a different, expected reason: OpenCV 4.12 native libraries are bigger.
+
+**Still open, deliberately**
+
+| Item | Why it is not closed here |
+|---|---|
+| Compose/AndroidX upgrade (4 `GradleDependency` notices) | A two-year Compose BOM jump plus activity/lifecycle/core upgrades, with no device testing, is a release risk larger than the warnings it silences. Deferred to its own change. |
+| WP-03 stage 3 (streaming PDF) | Still gated on the peak-memory measurement, which needs a device. |
+| SEC-001 (Keystore key migration) | Still needs an independently reviewed key-management design (P-1…P-7). |
+| Device checklist in §10.4 | Not run; the owner tests manually. No runtime claim is made for 0.8.0. |
+
 ### Revision 4 — 25 November 2026 — Stage 5, Wave 1 implemented
 
 Approved scope: **WP-01, WP-03 stages 1–2, WP-05 (Option A), WP-06.** Decisions taken: Q2 = stages 1+2 then measure (no new dependency); Q7 = `app.flipscan` not yet published (so WP-02 will create a first-publication identity); Q10 = AGP 8.9.1 minimum.

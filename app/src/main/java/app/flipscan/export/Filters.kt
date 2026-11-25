@@ -1,6 +1,7 @@
 package app.flipscan.export
 
 import android.graphics.Bitmap
+import androidx.core.graphics.createBitmap
 import app.flipscan.data.Filter
 import org.opencv.android.Utils
 import org.opencv.core.Core
@@ -23,7 +24,7 @@ object Filters {
                 Filter.MAGIC -> magicColor(rgba, out)
                 Filter.ORIGINAL -> return src
             }
-            val result = Bitmap.createBitmap(src.width, src.height, Bitmap.Config.ARGB_8888)
+            val result = createBitmap(src.width, src.height)
             Utils.matToBitmap(out, result) // accepts 1-channel (gray/B&W) and 3-channel (RGB) mats
             src.recycle()
             return result

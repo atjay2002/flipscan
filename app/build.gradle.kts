@@ -1,8 +1,29 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
 }
+
+// Release signing material is never committed. Provide it either through a git-ignored
+// keystore.properties in the repository root or through FLIPSCAN_* environment variables.
+// Without it, release builds stay unsigned and every task still works, which is the
+// default state of this repository.
+val keystoreProperties = Properties().apply {
+    val file = rootProject.file("keystore.properties")
+    if (file.exists()) file.inputStream().use { load(it) }
+}
+
+fun signingValue(property: String, env: String): String? =
+    (keystoreProperties.getProperty(property) ?: System.getenv(env))?.takeIf { it.isNotBlank() }
+
+val signingStoreFile = signingValue("storeFile", "FLIPSCAN_STORE_FILE")
+val signingStorePassword = signingValue("storePassword", "FLIPSCAN_STORE_PASSWORD")
+val signingKeyAlias = signingValue("keyAlias", "FLIPSCAN_KEY_ALIAS")
+val signingKeyPassword = signingValue("keyPassword", "FLIPSCAN_KEY_PASSWORD")
+val hasReleaseSigning = signingStoreFile != null && signingStorePassword != null &&
+    signingKeyAlias != null && signingKeyPassword != null
 
 android {
     namespace = "app.flipscan"
@@ -12,8 +33,19 @@ android {
         applicationId = "app.flipscan"
         minSdk = 24
         targetSdk = 36
-        versionCode = 8
-        versionName = "0.7.0"
+        versionCode = 9
+        versionName = "0.8.0"
+    }
+
+    signingConfigs {
+        if (hasReleaseSigning) {
+            create("release") {
+                storeFile = rootProject.file(signingStoreFile!!)
+                storePassword = signingStorePassword
+                keyAlias = signingKeyAlias
+                keyPassword = signingKeyPassword
+            }
+        }
     }
 
     buildTypes {
@@ -31,7 +63,15 @@ android {
             // Real phones are ARM; x86_64 builds are only useful for emulators.
             // The App Bundle still ships only what each device needs.
             ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }
+            // Only applied when keystore.properties or the FLIPSCAN_* variables are present.
+            if (hasReleaseSigning) signingConfig = signingConfigs.getByName("release")
         }
+    }
+
+    lint {
+        // Release builds ship ARM only on purpose: x86_64 is a debug/emulator ABI here, and the
+        // app bundle splits native libraries per ABI anyway.
+        disable += "ChromeOsAbiSupport"
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -69,8 +109,9 @@ dependencies {
     implementation("androidx.compose.foundation:foundation")
     implementation("androidx.compose.material3:material3")
 
-    // CameraX
-    val camerax = "1.3.4"
+    // CameraX. 1.4+ is the first line whose native helpers are aligned for 16 KB memory pages,
+    // which Google Play requires for apps targeting API 35+ that ship native code.
+    val camerax = "1.7.0"
     implementation("androidx.camera:camera-core:$camerax")
     implementation("androidx.camera:camera-camera2:$camerax")
     implementation("androidx.camera:camera-lifecycle:$camerax")
@@ -83,6 +124,7 @@ dependencies {
     // model ships inside the APK, so no Play Services download and no network are involved.
     implementation("com.google.mlkit:text-recognition:16.0.1")
 
-    // OpenCV for Android (detection + perspective correction), from Maven Central
-    implementation("org.opencv:opencv:4.9.0")
+    // OpenCV for Android (detection + perspective correction), from Maven Central.
+    // 4.12.0 is the first 4.x release here whose native libraries are 16 KB page aligned.
+    implementation("org.opencv:opencv:4.12.0")
 }

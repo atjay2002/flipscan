@@ -3,7 +3,7 @@ package app.flipscan.export
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
-import android.net.Uri
+import androidx.core.net.toUri
 import app.flipscan.data.Downloads
 import app.flipscan.data.SavedExport
 
@@ -13,7 +13,7 @@ object Viewer {
     fun open(ctx: Context, saved: SavedExport): String? {
         if (!Downloads.exists(ctx, saved)) return "This file is no longer in Downloads/FlipScan."
         return try {
-            val uri = Uri.parse(saved.uri)
+            val uri = saved.uri.toUri()
             val intent = Intent(Intent.ACTION_VIEW)
                 .setDataAndType(uri, saved.mime.ifEmpty { "application/pdf" })
                 .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)

@@ -159,9 +159,21 @@ name it `TEST-DISPOSABLE` first, and note how many locker documents exist before
 - Crop: dragging corners must track the finger with no lag (no animation is used there on purpose).
 - Narrow/small phone: the result screen still scrolls, the bottom bar does not cover the last settings row.
 
+## Cached exports and sharing
+- Export a scan, open the share sheet, leave it open, then export the same scan again. The first share
+  must still open its file: each render writes to its own `cache/exports/<id>/` directory.
+- Export, then force-stop and relaunch: `adb shell run-as app.flipscan ls cache/exports` (debug build)
+  must be empty, because the tree is cleared at start-up.
+- Export a large PDF, wait, and export again: the older directory is pruned after six hours rather than
+  deleted on the next render.
+
 ## Release build (R8) smoke test
 This is the build that is distributed; install it once before publishing:
-- `bash gradlew assembleRelease` and install `app/build/outputs/apk/release/app-release-unsigned.apk` after signing.
+- `bash gradlew assembleRelease` produces a signed `app/build/outputs/apk/release/app-release.apk` when
+  `keystore.properties` (or the `FLIPSCAN_*` variables) is present; without it the artifact is unsigned.
+- Check 16 KB page-size support before uploading:
+  `zipalign -c -P 16 -v 4 app-release.apk` must end with `Verification successful`, and every
+  `lib/arm64-v8a/*.so` must have `LOAD` alignment `0x4000` or larger.
 - Open the camera, toggle the torch, capture a card both ways, crop with OpenCV perspective correction, rotate, save PDF/JPG/PNG, and share.
 - Open the Digital Locker, unlock with the system prompt, save one card document and one multi-page document, rotate and crop a locker page, rename and delete it, then restart the app and confirm the locker still unlocks and opens the remaining document. R8 must not break Keystore (encryption), org.json (index) or androidx.biometric (prompt).
 - If anything fails only in release, the first suspect is a missing keep rule in `app/proguard-rules.pro` (OpenCV JNI, CameraX runtime classes).

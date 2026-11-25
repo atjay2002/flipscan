@@ -1,7 +1,6 @@
 package app.flipscan.ui
 
 import android.content.Intent
-import android.net.Uri
 import android.graphics.Bitmap
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Image
@@ -57,6 +56,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.core.net.toUri
 import app.flipscan.data.Downloads
 import app.flipscan.data.ExportSettings
 import app.flipscan.data.Format
@@ -295,7 +295,7 @@ fun LockerViewerScreen(
     }
 
     fun openExport(saved: SavedExport) {
-        val uri = Uri.parse(saved.uri)
+        val uri = saved.uri.toUri()
         val intent = Intent(Intent.ACTION_VIEW).apply {
             setDataAndType(uri, saved.mime)
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)

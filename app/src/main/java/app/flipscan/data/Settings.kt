@@ -2,6 +2,7 @@ package app.flipscan.data
 
 import android.content.Context
 import android.content.SharedPreferences
+import androidx.core.content.edit
 
 enum class Paper(val label: String, val wMm: Float, val hMm: Float) {
     A4("A4", 210f, 297f),
@@ -77,19 +78,19 @@ object SettingsStore {
     }
 
     fun save(ctx: Context, s: ExportSettings) {
-        prefs(ctx).edit()
-            .putString("paper", s.paper.name)
-            .putFloat("customW", s.customW)
-            .putFloat("customH", s.customH)
-            .putString("orientation", s.orientation.name)
-            .putString("layout", s.layout.name)
-            .putFloat("marginMm", s.marginMm)
-            .putBoolean("cutLine", s.cutLine)
-            .putBoolean("realSize", s.realSize)
-            .putString("filter", s.filter.name)
-            .putString("format", s.format.name)
-            .putInt("targetKb", s.targetKb)
-            .apply()
+        prefs(ctx).edit {
+            putString("paper", s.paper.name)
+            putFloat("customW", s.customW)
+            putFloat("customH", s.customH)
+            putString("orientation", s.orientation.name)
+            putString("layout", s.layout.name)
+            putFloat("marginMm", s.marginMm)
+            putBoolean("cutLine", s.cutLine)
+            putBoolean("realSize", s.realSize)
+            putString("filter", s.filter.name)
+            putString("format", s.format.name)
+            putInt("targetKb", s.targetKb)
+        }
     }
 }
 

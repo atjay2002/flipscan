@@ -143,6 +143,7 @@ private fun App() {
             Work.clear(ctx)
             LockerStore.clearTemps(ctx)
             LockerStore.clearExportTemps(ctx)
+            Exporter.clearTemps(ctx)
             LockerStore.sweep(ctx)
         }
     }

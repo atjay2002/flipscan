@@ -7,6 +7,7 @@ import android.graphics.Color
 import android.graphics.DashPathEffect
 import android.graphics.Paint
 import android.graphics.RectF
+import androidx.core.graphics.scale
 import app.flipscan.data.Filter
 import java.io.File
 import kotlin.math.roundToInt
@@ -29,7 +30,7 @@ object PageLoader {
         var bmp = decoded
         if (decoded.width > targetW) {
             val h = (decoded.height * targetW.toFloat() / decoded.width).roundToInt().coerceAtLeast(1)
-            bmp = Bitmap.createScaledBitmap(decoded, targetW.coerceAtLeast(1), h, true)
+            bmp = decoded.scale(targetW.coerceAtLeast(1), h)
             if (bmp !== decoded) decoded.recycle()
         }
         return Filters.apply(bmp, filter)

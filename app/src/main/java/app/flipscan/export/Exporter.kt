@@ -4,6 +4,8 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.pdf.PdfDocument
+import androidx.core.graphics.createBitmap
+import androidx.core.graphics.scale
 import app.flipscan.data.ExportSettings
 import app.flipscan.data.Filter
 import app.flipscan.data.Format
@@ -16,6 +18,7 @@ import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
+import java.util.UUID
 import kotlin.math.floor
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
@@ -47,7 +50,7 @@ object Exporter {
 
     private fun renderBitmap(plan: SheetPlan, files: List<File>, dpi: Int, filter: Filter): Bitmap {
         val ppm = dpi / 25.4f
-        val bmp = Bitmap.createBitmap(
+        val bmp = createBitmap(
             (plan.widthMm * ppm).roundToInt().coerceAtLeast(1),
             (plan.heightMm * ppm).roundToInt().coerceAtLeast(1),
             Bitmap.Config.ARGB_8888
@@ -85,8 +88,33 @@ object Exporter {
         }
     }
 
-    fun exportDir(ctx: Context): File =
-        File(ctx.cacheDir, "exports").apply { deleteRecursively(); mkdirs() }
+    /** How long a finished export stays in the cache, so an open share sheet can still read it. */
+    private const val EXPORT_RETENTION_MS = 6 * 60 * 60 * 1000L
+
+    /**
+     * A fresh directory for one render, under cache/exports.
+     *
+     * Earlier versions wiped the whole `cache/exports` tree at the start of every render, which
+     * deleted the files a share sheet opened a moment earlier was still reading. Each render now
+     * gets its own directory and old ones are pruned by age instead.
+     */
+    fun exportDir(ctx: Context): File {
+        val root = File(ctx.cacheDir, "exports")
+        val dir = File(root, "${System.currentTimeMillis()}-${UUID.randomUUID().toString().take(8)}")
+        dir.mkdirs()
+        pruneExports(root)
+        return dir
+    }
+
+    private fun pruneExports(root: File) {
+        val cutoff = System.currentTimeMillis() - EXPORT_RETENTION_MS
+        root.listFiles()?.forEach { if (it.lastModified() < cutoff) it.deleteRecursively() }
+    }
+
+    /** Deletes every cached export. Only safe at start-up, when no share can be in flight. */
+    fun clearTemps(ctx: Context) {
+        File(ctx.cacheDir, "exports").deleteRecursively()
+    }
 
     /** Sanitises a user-visible base name; the extension is added by [render]. */
     fun safeName(name: String): String = Naming.baseName(name, "scan")
@@ -131,9 +159,9 @@ object Exporter {
                 scale *= 0.8f
                 if (scale < 0.15f) break
                 scaled?.recycle()
-                scaled = Bitmap.createScaledBitmap(
-                    bmp, (bmp.width * scale).roundToInt().coerceAtLeast(1),
-                    (bmp.height * scale).roundToInt().coerceAtLeast(1), true
+                scaled = bmp.scale(
+                    (bmp.width * scale).roundToInt().coerceAtLeast(1),
+                    (bmp.height * scale).roundToInt().coerceAtLeast(1)
                 )
             }
             return best to false

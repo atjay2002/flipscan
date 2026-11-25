@@ -99,19 +99,21 @@ it as PDF, JPG or PNG.
 
 | Area | Choice |
 | --- | --- |
-| Language | Kotlin 2.0.20, JDK 17 |
+| Language | Kotlin 2.2.20, JDK 17 |
 | UI | Jetpack Compose with Material 3 (`compose-bom:2024.09.00`), single-activity, portrait only |
-| Camera | CameraX 1.3.4 (`camera-core`, `camera-camera2`, `camera-lifecycle`, `camera-view`) |
-| Image processing | OpenCV for Android 4.9.0 (`org.opencv:opencv`) |
+| Camera | CameraX 1.7.0 (`camera-core`, `camera-camera2`, `camera-lifecycle`, `camera-view`) |
+| Image processing | OpenCV for Android 4.12.0 (`org.opencv:opencv`) |
 | Text recognition | ML Kit bundled text recognition 16.0.1 (Latin model in the APK) |
 | Locker auth | `androidx.biometric:biometric:1.1.0` (BiometricPrompt with credential fallback) |
 | Storage | App-private files; exports through MediaStore `Downloads/FlipScan` |
-| Build | Android Gradle Plugin 8.9.1, Gradle 8.11.1, R8 + resource shrinking for release |
+| Build | Android Gradle Plugin 8.10.1, Gradle 8.11.1, R8 + resource shrinking for release |
 | SDK levels | `minSdk 24`, `compileSdk`/`targetSdk 36` |
 
 There is no dependency-injection framework, no ViewModel/Navigation/Room stack and no CI: screen state
 is a hand-rolled sealed `Screen` type in `MainActivity` with Compose state and coroutines. Native ABIs
 are `arm64-v8a` and `armeabi-v7a` for release, plus `x86_64` in debug so the app runs in an emulator.
+Every 64-bit native library in the release APK is aligned for 16 KB memory pages, which Google Play
+requires for apps targeting API 35+ that ship native code.
 
 ## Build
 
@@ -139,34 +141,41 @@ Other useful tasks: `./gradlew lintDebug`, `./gradlew assembleRelease`, `./gradl
 Outputs:
 
 - Debug APK: `app/build/outputs/apk/debug/app-debug.apk` (ARM + `x86_64` for emulators)
-- Release APK: `app/build/outputs/apk/release/app-release-unsigned.apk` (ARM only)
+- Release APK: `app/build/outputs/apk/release/app-release.apk` (ARM only)
 - App Bundle: `app/build/outputs/bundle/release/app-release.aab`
 
 Release builds enable R8 minification and resource shrinking; `app/proguard-rules.pro` keeps
 `org.opencv.**` for JNI and `androidx.camera.**` for runtime-resolved classes. The bundle splits native
 libraries per ABI, so Play delivers only what each device needs.
 
-Release artifacts are **unsigned**: this repository holds no signing key and no credentials. Configure
-your own key locally and never commit it. `adb install` rejects an unsigned APK with
-`INSTALL_PARSE_FAILED_NO_CERTIFICATES`; to test a release build on a device, sign it locally first:
+### Signing
 
-```sh
-apksigner sign --ks ~/.android/debug.keystore --ks-key-alias androiddebugkey \
-  --ks-pass pass:android --key-pass pass:android \
-  --out app-release-test.apk app/build/outputs/apk/release/app-release-unsigned.apk
-adb install -r app-release-test.apk
+This repository contains **no signing key and no credentials**, and a fresh clone builds release
+artifacts unsigned. To sign locally, create a git-ignored `keystore.properties` in the repository
+root:
+
+```properties
+storeFile=/absolute/path/to/release.jks
+storePassword=…
+keyAlias=…
+keyPassword=…
 ```
+
+or set the equivalent `FLIPSCAN_STORE_FILE`, `FLIPSCAN_STORE_PASSWORD`, `FLIPSCAN_KEY_ALIAS` and
+`FLIPSCAN_KEY_PASSWORD` environment variables. When either source is present the release build is
+signed automatically; when neither is, it stays unsigned and every task still succeeds. Never commit
+a keystore, a password or a `keystore.properties` file — all three patterns are in `.gitignore`.
 
 ## Measured build sizes
 
-Measured on 25 November 2026 with the sources in this repository (`versionCode 8`, AGP 8.9.1,
-Gradle 8.11.1, `compileSdk`/`targetSdk` 36):
+Measured on 25 November 2026 with the sources in this repository (`versionCode 9`, AGP 8.10.1,
+Gradle 8.11.1, Kotlin 2.2.20, `compileSdk`/`targetSdk` 36):
 
 | Artifact | Size |
 | --- | --- |
-| Debug APK | 135,219,665 B (129.0 MiB) |
-| Release APK (unsigned, minified) | 58,692,222 B (56.0 MiB) |
-| Release AAB | 31,116,929 B (29.7 MiB) |
+| Debug APK | 144,862,042 B (138.2 MiB) |
+| Release APK (signed, minified) | 64,371,097 B (61.4 MiB) |
+| Release AAB | 34,504,378 B (32.9 MiB) |
 
 The native OpenCV libraries and the bundled ML Kit OCR model dominate the download. Sizes vary with
 the SDK and toolchain version, so treat these as a reference point rather than a guarantee.
@@ -208,6 +217,13 @@ document. It reuses the same camera and crop flow, but encrypts before anything 
   `cacheDir/locker_export/<docId>/<id>/` for the duration of the export only, then deletes it; anything
   left by a process death is removed at the next start. The exported copy itself is no longer
   encrypted, and the export dialog says so.
+
+## Cached exports
+
+`Exporter.render` builds its output in `cacheDir/exports/<id>/`, one directory per render, and shares
+files from there through FileProvider. Older directories are pruned by age and the whole tree is
+cleared at start-up, so a second export can no longer delete the files an open share sheet is still
+reading.
 
 ## Digital Pins
 
@@ -253,7 +269,7 @@ Open versus Edit, motion and layout, and a release-build smoke test.
 
 ## Version
 
-`versionName 0.7.0`, `versionCode 8`, `minSdk 24`, `compileSdk`/`targetSdk 36` — as declared in
+`versionName 0.8.0`, `versionCode 9`, `minSdk 24`, `compileSdk`/`targetSdk 36` — as declared in
 `app/build.gradle.kts`.
 
 ## License
