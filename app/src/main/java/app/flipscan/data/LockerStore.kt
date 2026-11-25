@@ -303,6 +303,15 @@ object LockerStore {
     }
 
     /**
+     * Deletes the plaintext page copies written for locker export and share. They normally live
+     * only for the duration of one export, so anything still here was left behind by a process
+     * that died mid-export. Called once at startup, before any locker screen can be opened.
+     */
+    fun clearExportTemps(ctx: Context) {
+        File(ctx.cacheDir, "locker_export").deleteRecursively()
+    }
+
+    /**
      * Removes stale `.tmp` directories, orphaned document folders and a half-written index.
      * When the index itself is unreadable nothing is deleted, so a key problem never destroys data.
      */

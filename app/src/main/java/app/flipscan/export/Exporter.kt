@@ -14,7 +14,11 @@ import app.flipscan.data.ScanStore
 import app.flipscan.data.SettingsStore
 import java.io.ByteArrayOutputStream
 import java.io.File
+import java.io.FileOutputStream
+import java.io.IOException
+import kotlin.math.floor
 import kotlin.math.roundToInt
+import kotlin.math.sqrt
 
 private typealias Sheet = Pair<SheetPlan, List<File>>
 
@@ -54,7 +58,16 @@ object Exporter {
         return bmp
     }
 
-    private fun pdfBytes(sheets: List<Sheet>, filter: Filter, dpi: Int): ByteArray {
+    /**
+     * Draws the document straight into [target] and returns its size in bytes.
+     *
+     * The pages cannot be flushed one at a time: [PdfDocument] serialises everything in
+     * [PdfDocument.writeTo], and until then it keeps reading the page bitmaps — which is why
+     * [SheetRenderer.draw] is called with recycle = false. Writing to a file instead of a
+     * ByteArrayOutputStream still helps, because it avoids holding a second copy of the whole
+     * PDF (the stream buffer plus the array copy) while that serialisation runs.
+     */
+    private fun writePdf(sheets: List<Sheet>, filter: Filter, dpi: Int, target: File): Long {
         val doc = PdfDocument()
         try {
             sheets.forEachIndexed { i, (plan, files) ->
@@ -65,9 +78,8 @@ object Exporter {
                 SheetRenderer.draw(page.canvas, plan, files, dpi, filter, recycle = false)
                 doc.finishPage(page)
             }
-            val out = ByteArrayOutputStream()
-            doc.writeTo(out)
-            return out.toByteArray()
+            FileOutputStream(target).use { out -> doc.writeTo(out) }
+            return target.length()
         } finally {
             doc.close()
         }
@@ -130,18 +142,63 @@ object Exporter {
         }
     }
 
+    /** How many times the PDF may be rebuilt while hunting for the size target. */
+    private const val MAX_PDF_ATTEMPTS = 4
+
+    /** Below this dpi there is nothing left to gain; the smallest result is returned instead. */
+    private const val MIN_PDF_DPI = 50
+
     /**
-     * PdfDocument stores pictures losslessly, so the PDF size is steered with the resolution:
-     * try the normal dpi first, then step down until the file fits.
+     * PdfDocument stores pictures losslessly, so the PDF size is steered with the resolution.
+     * The first attempt uses the normal dpi; if the file is still too big, the next dpi is
+     * estimated from the square root of the overshoot (image bytes grow with dpi squared).
+     * Every attempt is written straight to a scratch file, so no attempt is ever held in
+     * memory and the previous ladder of whole-document byte arrays is gone. Only the smallest
+     * attempt is kept and moved into place. Returns the size and whether the target was reached.
      */
-    private fun pdfToTarget(sheets: List<Sheet>, filter: Filter, dpi: Int, targetBytes: Int): Pair<ByteArray, Boolean> {
-        if (targetBytes <= 0) return pdfBytes(sheets, filter, dpi) to true
-        var last = ByteArray(0)
-        for (d in listOf(dpi) + listOf(220, 160, 120, 90, 70, 50).filter { it < dpi }) {
-            last = pdfBytes(sheets, filter, d)
-            if (last.size <= targetBytes) return last to true
+    private fun pdfToTarget(
+        sheets: List<Sheet>,
+        filter: Filter,
+        dpi: Int,
+        target: File,
+        targetBytes: Int
+    ): Pair<Long, Boolean> {
+        val scratch = File(target.parentFile, "${target.name}.tmp")
+        val best = File(target.parentFile, "${target.name}.best")
+        var bestSize = -1L
+        var current = dpi
+        var attempts = 0
+        try {
+            while (true) {
+                attempts++
+                val size = writePdf(sheets, filter, current, scratch)
+                if (bestSize < 0 || size < bestSize) {
+                    replace(scratch, best)
+                    bestSize = size
+                } else {
+                    scratch.delete()
+                }
+                if (targetBytes <= 0 || size <= targetBytes) break
+                if (attempts >= MAX_PDF_ATTEMPTS) break
+                val scaled = floor(current * sqrt(targetBytes.toDouble() / size)).toInt()
+                // Always step down, so a rounding artefact cannot stall the loop.
+                val next = scaled.coerceAtMost(current - 10)
+                if (next < MIN_PDF_DPI) break
+                current = next
+            }
+            if (bestSize < 0) throw IOException("Could not write the PDF")
+            replace(best, target)
+            return bestSize to (targetBytes <= 0 || bestSize <= targetBytes)
+        } finally {
+            scratch.delete()
+            best.delete()
         }
-        return last to false
+    }
+
+    /** Renames [from] onto [to], replacing it: renameTo can fail when the target already exists. */
+    private fun replace(from: File, to: File) {
+        to.delete()
+        if (!from.renameTo(to)) throw IOException("Could not finish the export")
     }
 
     /**
@@ -156,14 +213,15 @@ object Exporter {
         val target = s.targetKb * 1024
         val files = mutableListOf<File>()
         val notes = mutableListOf<String>()
-        fun limitNote(bytes: ByteArray) {
-            notes += "Could not reach ${s.targetKb} KB; smallest result is ${bytes.size / 1024} KB"
+        fun limitNote(size: Long) {
+            notes += "Could not reach ${s.targetKb} KB; smallest result is ${size / 1024} KB"
         }
 
         if (s.format == Format.PDF) {
-            val (bytes, reached) = pdfToTarget(sheets, s.filter, dpi, target)
-            files += File(dir, "$base.pdf").also { it.writeBytes(bytes) }
-            if (!reached) limitNote(bytes)
+            val file = File(dir, "$base.pdf")
+            val (size, reached) = pdfToTarget(sheets, s.filter, dpi, file, target)
+            files += file
+            if (!reached) limitNote(size)
         } else {
             sheets.forEachIndexed { i, (plan, pageFiles) ->
                 // One sheet at a time: only one big bitmap is alive.
@@ -172,7 +230,7 @@ object Exporter {
                     val (bytes, reached) = encode(bmp, s.format, target)
                     val name = if (sheets.size == 1) base else "${base}_${i + 1}"
                     files += File(dir, "$name.${s.format.ext}").also { it.writeBytes(bytes) }
-                    if (!reached) limitNote(bytes)
+                    if (!reached) limitNote(bytes.size.toLong())
                 } finally {
                     bmp.recycle()
                 }
@@ -210,14 +268,15 @@ object Exporter {
         val target = s.targetKb * 1024
         val files = mutableListOf<File>()
         val notes = mutableListOf<String>()
-        fun limitNote(bytes: ByteArray) {
-            notes += "Could not reach ${s.targetKb} KB; smallest result is ${bytes.size / 1024} KB"
+        fun limitNote(size: Long) {
+            notes += "Could not reach ${s.targetKb} KB; smallest result is ${size / 1024} KB"
         }
 
         if (s.format == Format.PDF) {
-            val (bytes, reached) = pdfToTarget(sheets, s.filter, dpi, target)
-            files += File(dir, "$base.pdf").also { it.writeBytes(bytes) }
-            if (!reached) limitNote(bytes)
+            val file = File(dir, "$base.pdf")
+            val (size, reached) = pdfToTarget(sheets, s.filter, dpi, file, target)
+            files += file
+            if (!reached) limitNote(size)
         } else {
             sheets.forEachIndexed { i, (plan, pageFiles) ->
                 val bmp = renderBitmap(plan, pageFiles, dpi, s.filter)
@@ -225,7 +284,7 @@ object Exporter {
                     val (bytes, reached) = encode(bmp, s.format, target)
                     val name = if (sheets.size == 1) base else "${base}_${i + 1}"
                     files += File(dir, "$name.${s.format.ext}").also { it.writeBytes(bytes) }
-                    if (!reached) limitNote(bytes)
+                    if (!reached) limitNote(bytes.size.toLong())
                 } finally {
                     bmp.recycle()
                 }

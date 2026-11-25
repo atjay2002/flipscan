@@ -70,8 +70,10 @@ import app.flipscan.data.SettingsStore
 import app.flipscan.export.Exporter
 import app.flipscan.export.Share
 import java.io.File
+import java.util.UUID
 import app.flipscan.util.decodeSampled
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -170,29 +172,41 @@ fun LockerViewerScreen(
         }
     }
 
-    /** Decrypts all pages to temp files under cacheDir/locker_export/<docId>/. */
-    fun decryptPagesToTemp(doc: LockerDoc): List<File> {
-        val exportDir = File(ctx.cacheDir, "locker_export/${doc.id}")
-        exportDir.deleteRecursively()
-        exportDir.mkdirs()
-        return (0 until doc.pages).map { i ->
+    /**
+     * Decrypts all pages into a fresh directory: cacheDir/locker_export/<docId>/<exportId>/.
+     *
+     * A new directory per export means a second export never deletes the files an in-flight
+     * share of the same document is still reading. The caller owns [Pair.first] and must delete
+     * it; the startup sweep removes the whole locker_export tree after a process death.
+     */
+    fun decryptPagesToTemp(doc: LockerDoc): Pair<File, List<File>> {
+        val exportDir = File(ctx.cacheDir, "locker_export/${doc.id}/${System.currentTimeMillis()}-${UUID.randomUUID().toString().take(8)}")
+        if (!exportDir.mkdirs()) return exportDir to emptyList()
+        val pages = (0 until doc.pages).map { i ->
             val out = File(exportDir, "page_$i.jpg")
             LockerStore.pageBytes(ctx, doc.id, i)?.let { out.writeBytes(it) }
             out
         }.filter { it.exists() }
+        return exportDir to pages
     }
 
     fun export() {
         val current = doc ?: return
-        val pages = decryptPagesToTemp(current)
-        if (pages.isEmpty()) {
-            message = "Could not decrypt pages for export."
-            return
-        }
         exporting = true
         message = null
         scope.launch {
+            var tempDir: File? = null
             try {
+                // Decryption and disk writes stay off the UI thread.
+                val (dir, pages) = withContext(Dispatchers.IO) { decryptPagesToTemp(current) }
+                tempDir = dir
+                if (pages.isEmpty()) {
+                    withContext(Dispatchers.Main) {
+                        exporting = false
+                        message = "Could not decrypt pages for export."
+                    }
+                    return@launch
+                }
                 val settings = SettingsStore.load(ctx)
                 val res = withContext(Dispatchers.Default) {
                     Exporter.renderPages(
@@ -226,24 +240,30 @@ fun LockerViewerScreen(
                     message = "Export failed: ${e.message ?: "Unknown error"}"
                 }
             } finally {
-                // Always clean up plaintext temp files.
-                pages.forEach { it.delete() }
-                pages.firstOrNull()?.parentFile?.deleteRecursively()
+                // Plaintext must not outlive the export, even if the work was cancelled.
+                tempDir?.let { dir ->
+                    withContext(NonCancellable + Dispatchers.IO) { dir.deleteRecursively() }
+                }
             }
         }
     }
 
     fun share() {
         val current = doc ?: return
-        val pages = decryptPagesToTemp(current)
-        if (pages.isEmpty()) {
-            message = "Could not decrypt pages for sharing."
-            return
-        }
         exporting = true
         message = null
         scope.launch {
+            var tempDir: File? = null
             try {
+                val (dir, pages) = withContext(Dispatchers.IO) { decryptPagesToTemp(current) }
+                tempDir = dir
+                if (pages.isEmpty()) {
+                    withContext(Dispatchers.Main) {
+                        exporting = false
+                        message = "Could not decrypt pages for sharing."
+                    }
+                    return@launch
+                }
                 val settings = SettingsStore.load(ctx)
                 val files = withContext(Dispatchers.Default) {
                     Exporter.renderPages(
@@ -267,8 +287,9 @@ fun LockerViewerScreen(
                     message = "Could not share: ${e.message ?: "Unknown error"}"
                 }
             } finally {
-                pages.forEach { it.delete() }
-                pages.firstOrNull()?.parentFile?.deleteRecursively()
+                tempDir?.let { dir ->
+                    withContext(NonCancellable + Dispatchers.IO) { dir.deleteRecursively() }
+                }
             }
         }
     }

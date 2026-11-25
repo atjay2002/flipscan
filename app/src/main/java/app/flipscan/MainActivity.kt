@@ -142,6 +142,7 @@ private fun App() {
         withContext(Dispatchers.IO) {
             Work.clear(ctx)
             LockerStore.clearTemps(ctx)
+            LockerStore.clearExportTemps(ctx)
             LockerStore.sweep(ctx)
         }
     }

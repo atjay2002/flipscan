@@ -1,12 +1,39 @@
-*.iml
+# Gradle
 .gradle/
 build/
+.kotlin/
+
+# Android SDK / local machine configuration
 local.properties
-.idea/
-.DS_Store
-captures/
 .externalNativeBuild/
 .cxx/
+captures/
+
+# IDE
+.idea/
+*.iml
+
+# Build outputs that must never be committed
+*.apk
+*.aab
+*.aar
+
+# Signing material and credentials
+*.jks
+*.keystore
+*.p12
+*.pepk
+keystore.properties
+signing.properties
+
+# Logs and scratch output
+*.log
+*.hprof
+
+# OS noise
+.DS_Store
+Thumbs.db
+
+# Agent instructions stay local to the machine
 AGENTS.md
-.kotlin/
 docs/*.local

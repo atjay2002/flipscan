@@ -6,12 +6,12 @@ plugins {
 
 android {
     namespace = "app.flipscan"
-    compileSdk = 34
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "app.flipscan"
         minSdk = 24
-        targetSdk = 34
+        targetSdk = 36
         versionCode = 8
         versionName = "0.7.0"
     }

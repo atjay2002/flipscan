@@ -84,6 +84,35 @@ Setup: set a screen lock and enrol a fingerprint (or face) on the phone. Then Ho
   The locker shows the "encrypted index could not be opened" message, does not list or delete anything, and
   recovers once the file is restored (a real Keystore failure is not recoverable, by design).
 - Lock button in the locker header returns Home immediately and ends the session; the next visit asks again.
+- Disclosure: the locked gate lists that the locker exists only on this phone and is never backed up, and the
+  empty home state repeats the warning. The wording must state that the documents cannot be recovered, and
+  must not promise a backup, a cloud copy or any recovery path.
+
+## Locker export, sharing and retention
+- Export a locker document as PDF, JPG and PNG from the viewer: the copies land in Downloads/FlipScan, the
+  "Saved to Downloads/FlipScan" message lists them, and they appear under the document's exported copies.
+- Open a saved copy from that list; then delete it from Downloads and open it again to see the readable
+  "missing" message. Nothing may crash.
+- Share a locker document, leave the share sheet open, then start a second export of the same document. The
+  first share must still open afterwards — each export writes into its own temp directory, so a new export no
+  longer deletes the files an earlier share is reading.
+- Export a normal scan while a locker share is still open: both must work. Locker files must never appear in
+  Recent scans, folders or Downloads except as the explicit export above.
+- Force-stop during a locker export, then relaunch and check that nothing decrypted survived:
+  `adb shell run-as app.flipscan ls cache/locker_export` (debug build) must be empty or fail.
+- Confirm the export dialog still warns that the exported copy is no longer encrypted.
+- Size target: export a multi-page PDF with a target KB set, and again with the target cleared. With a target
+  that cannot be reached, the note must report the smallest result actually produced; with no target, a single
+  pass must be enough.
+
+## Destructive locker tests (disposable documents only)
+Never run these on a phone that holds locker documents you need. Create one document from a synthetic image and
+name it `TEST-DISPOSABLE` first, and note how many locker documents exist before each step.
+- Clear storage: Settings → Apps → FlipScan → Storage → Clear storage. Reopen: the locker starts empty, shows
+  the disclosure again, and does not offer any recovery. Record whether an unlock prompt still appears — it
+  must.
+- Uninstall and reinstall: the locker starts empty with no stale entries and no crash.
+- Force-stop mid-export: after relaunch `cache/locker_export` is empty (see above).
 
 ## Digital Pins (Phase 2)
 - Open a card document in the locker: reading starts once per document and the result is stored encrypted. Do not run it again on re-open (the `numberChecked` flag lives in the index).

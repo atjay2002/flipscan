@@ -147,6 +147,11 @@ fun LockerGateScreen(onUnlocked: () -> Unit, onBack: () -> Unit) {
                     LockBullet("AES-256-GCM encryption with a key held in Android Keystore")
                     Spacer(Modifier.height(10.dp))
                     LockBullet("Separate from Recent scans, folders and Downloads")
+                    Spacer(Modifier.height(10.dp))
+                    LockBullet(
+                        "Only on this phone and never backed up: clearing app data, uninstalling " +
+                            "or resetting the device cannot be undone"
+                    )
                 }
 
                 if (status == LockerAuthStatus.NO_LOCK) {
@@ -412,6 +417,15 @@ private fun LockerEmptyState() {
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
             modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
+        )
+        Text(
+            "These documents live only on this phone and are not backed up. Clearing app data, " +
+                "uninstalling FlipScan or resetting the device means they cannot be recovered, " +
+                "so keep your own copy of anything you may need later.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth().padding(top = 12.dp)
         )
     }
 }
