@@ -6,6 +6,7 @@ import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -16,11 +17,13 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.width
+
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -50,7 +53,6 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -106,6 +108,7 @@ fun HomeScreen(
             .background(DesignBackground)
             .systemBarsPadding()
     ) {
+        LightSystemBars()
         GlowBackground(Modifier.fillMaxSize(), enabled = true)
         Column(Modifier.fillMaxSize()) {
             // ── Header row: logo + title + offline pill ──
@@ -144,7 +147,9 @@ fun HomeScreen(
 
             // ── Heading: "Both sides." / "One page." ──
             Column(
-                Modifier.fillMaxWidth()
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = DesignPaddingHorizontal)
             ) {
                 Text(
                     "Both sides.",
@@ -258,6 +263,25 @@ fun HomeScreen(
                     CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.5.dp)
                 }
             } else if (scans.isEmpty()) {
+                val reduce = rememberReduceMotion()
+                val flipRotation = remember { Animatable(0f) }
+
+                if (!reduce) {
+                    LaunchedEffect(Unit) {
+                        while (true) {
+                            flipRotation.animateTo(
+                                180f,
+                                animationSpec = tween(1000, easing = FastOutSlowInEasing)
+                            )
+                            flipRotation.animateTo(
+                                360f,
+                                animationSpec = tween(1000, easing = FastOutSlowInEasing)
+                            )
+                            delay(2000)
+                        }
+                    }
+                }
+
                 GlassCard(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -269,11 +293,12 @@ fun HomeScreen(
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Box(
-                            Modifier.size(40.dp).clip(CircleShape)
-                                .background(MaterialTheme.colorScheme.primaryContainer),
+                            Modifier
+                                .size(40.dp)
+                                .graphicsLayer { rotationY = flipRotation.value },
                             contentAlignment = Alignment.Center
                         ) {
-                            FlipIcon(Modifier.size(20.dp), DesignBrand)
+                            FlipArrowIcon(Modifier.size(24.dp), DesignBrand)
                         }
                         Spacer(Modifier.height(14.dp))
                         Text(
@@ -444,6 +469,7 @@ private fun PromoCardBothSides(
 
     GlassCard(
         modifier = modifier
+            .heightIn(min = 188.dp)
             .semantics {
                 contentDescription = "Scan ID card, both sides on one page"
                 role = Role.Button
@@ -452,68 +478,82 @@ private fun PromoCardBothSides(
         shape = RoundedCornerShape(24.dp),
         strong = true
     ) {
-        Box(Modifier.fillMaxSize()) {
-            Box(
+        Column(Modifier.fillMaxSize()) {
+            // ── Illustration area (weight 1, centered) ──
+            Column(
                 Modifier
-                    .size(100.dp, 116.dp)
-                    .clip(RoundedCornerShape(6.dp))
-                    .background(Color.White)
-                    .shadow(10.dp, RoundedCornerShape(6.dp), clip = false, ambientColor = DesignBrand.copy(alpha = 0.26f), spotColor = DesignBrand.copy(alpha = 0.13f))
-                    .align(Alignment.Center)
+                    .weight(1f)
+                    .fillMaxWidth()
                     .padding(top = 12.dp),
-                contentAlignment = Alignment.TopCenter
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
+                // Mini white sheet behind the cards
                 Box(
                     Modifier
-                        .size(78.dp, 46.dp)
+                        .size(100.dp, 116.dp)
                         .clip(RoundedCornerShape(6.dp))
-                        .background(DesignBrand)
-                        .shadow(5.dp, RoundedCornerShape(6.dp), clip = false, ambientColor = DesignBrand.copy(alpha = 0.35f), spotColor = DesignBrand.copy(alpha = 0.17f))
-                        .align(Alignment.TopCenter)
-                        .padding(top = 10.dp)
-                        .graphicsLayer { translationY = frontOffset.value; rotationZ = frontRotation.value },
-                    contentAlignment = Alignment.Center
+                        .background(Color.White)
+                        .shadow(10.dp, RoundedCornerShape(6.dp), clip = false, ambientColor = DesignBrand.copy(alpha = 0.26f), spotColor = DesignBrand.copy(alpha = 0.13f)),
+                    contentAlignment = Alignment.TopCenter
                 ) {
-                    CardDetailsFront()
-                }
+                    // BACK card first (drawn behind)
+                    Box(
+                        Modifier
+                            .size(78.dp, 46.dp)
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(Color(0xFF17142B))
+                            .shadow(5.dp, RoundedCornerShape(6.dp), clip = false, ambientColor = Color.Black.copy(alpha = 0.35f), spotColor = Color.Black.copy(alpha = 0.17f))
+                            .align(Alignment.TopCenter)
+                            .padding(top = 62.dp)
+                            .graphicsLayer { rotationX = backRotationX.value; cameraDistance = 8f.dp.toPx() },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CardDetailsBack()
+                    }
+                    // FRONT card on top
+                    Box(
+                        Modifier
+                            .size(78.dp, 46.dp)
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(DesignBrand)
+                            .shadow(5.dp, RoundedCornerShape(6.dp), clip = false, ambientColor = DesignBrand.copy(alpha = 0.35f), spotColor = DesignBrand.copy(alpha = 0.17f))
+                            .align(Alignment.TopCenter)
+                            .padding(top = 10.dp)
+                            .graphicsLayer { translationY = frontOffset.value; rotationZ = frontRotation.value },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CardDetailsFront()
+                    }
 
-                Box(
-                    Modifier
-                        .size(78.dp, 46.dp)
-                        .clip(RoundedCornerShape(6.dp))
-                        .background(Color(0xFF17142B))
-                        .shadow(5.dp, RoundedCornerShape(6.dp), clip = false, ambientColor = Color.Black.copy(alpha = 0.35f), spotColor = Color.Black.copy(alpha = 0.17f))
-                        .align(Alignment.TopCenter)
-                        .padding(top = 62.dp)
-                        .graphicsLayer { rotationX = backRotationX.value; cameraDistance = 8f.dp.toPx() },
-                    contentAlignment = Alignment.Center
-                ) {
-                    CardDetailsBack()
-                }
-
-                Box(
-                    Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(top = 60.dp, end = 8.dp)
-                        .background(DesignAccent)
-                        .clip(RoundedCornerShape(50.dp))
-                        .padding(horizontal = 9.dp, vertical = 5.dp)
-                        .graphicsLayer { rotationZ = 6f },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        "1 page",
-                        style = MaterialTheme.typography.labelSmall.copy(
-                            fontWeight = FontWeight.ExtraBold,
-                            fontSize = 10.sp
-                        ),
-                        color = DesignInk
-                    )
+                    // "1 page" sticker at top-end of illustration area
+                    Box(
+                        Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(top = 60.dp, end = 8.dp)
+                            .background(DesignAccent)
+                            .clip(RoundedCornerShape(50.dp))
+                            .padding(horizontal = 9.dp, vertical = 5.dp)
+                            .graphicsLayer { rotationZ = 6f },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            "1 page",
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontWeight = FontWeight.ExtraBold,
+                                fontSize = 10.sp
+                            ),
+                            color = DesignInk
+                        )
+                    }
                 }
             }
 
+            Spacer(Modifier.height(8.dp))
+
+            // ── Caption block at bottom ──
             Column(
-                Modifier.align(Alignment.BottomCenter).padding(bottom = 12.dp).padding(horizontal = 12.dp),
+                Modifier
+                    .padding(horizontal = 12.dp).padding(bottom = 12.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
@@ -524,7 +564,10 @@ private fun PromoCardBothSides(
                         letterSpacing = 0.2.sp
                     ),
                     color = DesignInk,
-                    lineHeight = 16.sp
+                    lineHeight = 16.sp,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    textAlign = TextAlign.Center
                 )
                 Spacer(Modifier.height(2.dp))
                 Text(
@@ -619,6 +662,7 @@ private fun PromoCardLocker(
 
     GlassCard(
         modifier = modifier
+            .heightIn(min = 188.dp)
             .semantics {
                 contentDescription = "Open Digital Locker"
                 role = Role.Button
@@ -627,56 +671,67 @@ private fun PromoCardLocker(
         shape = RoundedCornerShape(24.dp),
         strong = true
     ) {
-        Box(Modifier.fillMaxSize()) {
-            Box(
+        Column(Modifier.fillMaxSize()) {
+            // ── Top section: lock badge + copy chip ──
+            Column(
                 Modifier
-                    .size(56.dp)
-                    .clip(RoundedCornerShape(18.dp))
-                    .background(
-                        Brush.linearGradient(
-                            colors = listOf(DesignBrandLight, DesignBrand),
-                            start = Offset.Zero,
-                            end = Offset(56f, 56f)
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .padding(top = 20.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Box(
+                    Modifier
+                        .size(56.dp)
+                        .clip(RoundedCornerShape(18.dp))
+                        .background(
+                            Brush.linearGradient(
+                                colors = listOf(DesignBrandLight, DesignBrand),
+                                start = Offset.Zero,
+                                end = Offset(56f, 56f)
+                            )
                         )
-                    )
-                    .shadow(8.dp, RoundedCornerShape(18.dp), clip = false, ambientColor = DesignBrand.copy(alpha = 0.30f), spotColor = DesignBrand.copy(alpha = 0.15f))
-                    .align(Alignment.TopCenter)
-                    .padding(top = 20.dp)
-                    .graphicsLayer {
-                        scaleX = 1f + 0.05f * pulse.value
-                        scaleY = 1f + 0.05f * pulse.value
-                    },
-                contentAlignment = Alignment.Center
-            ) {
-                LockIcon(Modifier.size(28.dp), Color.White)
-            }
+                        .shadow(8.dp, RoundedCornerShape(18.dp), clip = false, ambientColor = DesignBrand.copy(alpha = 0.30f), spotColor = DesignBrand.copy(alpha = 0.15f))
+                        .graphicsLayer {
+                            scaleX = 1f + 0.05f * pulse.value
+                            scaleY = 1f + 0.05f * pulse.value
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    LockIcon(Modifier.size(28.dp), Color.White)
+                }
 
-            Box(
-                Modifier
-                    .align(Alignment.TopCenter)
-                    .padding(top = 92.dp)
-                    .background(Color.White.copy(alpha = 0.92f))
-                    .clip(RoundedCornerShape(50.dp))
-                    .padding(horizontal = 10.dp, vertical = 5.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        "Aadhaar •••• •••• 1234",
-                        style = MaterialTheme.typography.labelSmall.copy(
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 10.5.sp,
-                            letterSpacing = 0.4.sp
-                        ),
-                        color = DesignChipText
-                    )
-                    Spacer(Modifier.width(6.dp))
-                    CopyChipIcon(Modifier.size(12.dp), DesignChipText)
+                Spacer(Modifier.height(16.dp))
+
+                Box(
+                    Modifier
+                        .background(Color.White.copy(alpha = 0.92f))
+                        .clip(RoundedCornerShape(50.dp))
+                        .padding(horizontal = 10.dp, vertical = 5.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            "Aadhaar •••• •••• 1234",
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 10.5.sp,
+                                letterSpacing = 0.4.sp
+                            ),
+                            color = DesignChipText
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        CopyChipIcon(Modifier.size(12.dp), DesignChipText)
+                    }
                 }
             }
 
+            Spacer(Modifier.height(8.dp))
+
+            // ── Caption block at bottom ──
             Column(
-                Modifier.align(Alignment.BottomCenter).padding(bottom = 12.dp).padding(horizontal = 12.dp),
+                Modifier
+                    .padding(horizontal = 12.dp).padding(bottom = 12.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
@@ -739,14 +794,35 @@ private fun CopyChipIcon(modifier: Modifier = Modifier, color: Color) {
     }
 }
 
+/** Flip-arrows vector icon (from mockup SVG) for the empty-state animation. */
 @Composable
-private fun FlipIcon(modifier: Modifier = Modifier, color: Color) {
-    Box(modifier) {
+private fun FlipArrowIcon(modifier: Modifier = Modifier, color: Color) {
+    Box(
+        modifier = modifier,
+        contentAlignment = Alignment.Center
+    ) {
+        // Top arrow pointing down
         Box(
-            Modifier.size(14.dp).clip(RoundedCornerShape(2.dp)).background(color.copy(alpha = 0.2f)),
+            Modifier.size(12.dp, 12.dp).clip(RoundedCornerShape(2.dp)).background(color),
             contentAlignment = Alignment.Center
         ) {
-            Box(Modifier.size(6.dp).clip(RoundedCornerShape(1.dp)).background(color)) { }
+            Box(
+                Modifier.size(4.dp).background(color.copy(alpha = 0f))
+            )
+        }
+        // Simple vertical line connector
+        Box(
+            Modifier.size(2.dp, 8.dp).background(color),
+            contentAlignment = Alignment.Center
+        ) { }
+        // Bottom arrow pointing up
+        Box(
+            Modifier.size(12.dp, 12.dp).clip(RoundedCornerShape(2.dp)).background(color),
+            contentAlignment = Alignment.Center
+        ) {
+            Box(
+                Modifier.size(4.dp).background(color.copy(alpha = 0f))
+            )
         }
     }
 }

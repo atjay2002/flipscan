@@ -44,11 +44,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
@@ -134,29 +134,56 @@ fun GlowBackground(modifier: Modifier = Modifier, enabled: Boolean = true) {
                 val h = size.height
                 val t = drift.value
 
-                // Purple blob, top-left.
+                // Purple blob, top-left — radial gradient from center alpha 0.5 to transparent.
                 val cx1 = -70f.dp.toPx() + 22f.dp.toPx() * t
                 val cy1 = 130f.dp.toPx() - 18f.dp.toPx() * t
-                drawCircle(
-                    color = DesignGlowPurple.copy(alpha = 0.5f),
+                val purpleBrush = Brush.radialGradient(
+                    colors = listOf(
+                        DesignGlowPurple.copy(alpha = 0.5f),
+                        DesignGlowPurple.copy(alpha = 0.2f),
+                        Color.Transparent
+                    ),
                     center = Offset(cx1, cy1),
-                    radius = 125f.dp.toPx() * (1f + 0.12f * t)
+                    radius = 150f.dp.toPx()
                 )
-                // Amber blob, right-middle.
+                drawCircle(
+                    brush = purpleBrush,
+                    center = Offset(cx1, cy1),
+                    radius = 150f.dp.toPx()
+                )
+                // Amber blob, right-middle — radial gradient.
                 val cx2 = w + 60f.dp.toPx() - 22f.dp.toPx() * t
                 val cy2 = 470f.dp.toPx() + 18f.dp.toPx() * t
-                drawCircle(
-                    color = DesignGlowAmber.copy(alpha = 0.5f),
+                val amberBrush = Brush.radialGradient(
+                    colors = listOf(
+                        DesignGlowAmber.copy(alpha = 0.5f),
+                        DesignGlowAmber.copy(alpha = 0.2f),
+                        Color.Transparent
+                    ),
                     center = Offset(cx2, cy2),
-                    radius = 105f.dp.toPx() * (1f + 0.12f * t)
+                    radius = 140f.dp.toPx()
                 )
-                // Mint blob, bottom-left.
+                drawCircle(
+                    brush = amberBrush,
+                    center = Offset(cx2, cy2),
+                    radius = 140f.dp.toPx()
+                )
+                // Mint blob, bottom-left — radial gradient.
                 val cx3 = 30f.dp.toPx() + 16f.dp.toPx() * t
                 val cy3 = h - 340f.dp.toPx() - 14f.dp.toPx() * t
-                drawCircle(
-                    color = DesignGlowMint.copy(alpha = 0.4f),
+                val mintBrush = Brush.radialGradient(
+                    colors = listOf(
+                        DesignGlowMint.copy(alpha = 0.4f),
+                        DesignGlowMint.copy(alpha = 0.16f),
+                        Color.Transparent
+                    ),
                     center = Offset(cx3, cy3),
-                    radius = 110f.dp.toPx() * (1f + 0.12f * t)
+                    radius = 150f.dp.toPx()
+                )
+                drawCircle(
+                    brush = mintBrush,
+                    center = Offset(cx3, cy3),
+                    radius = 150f.dp.toPx()
                 )
             }
     )
@@ -292,19 +319,21 @@ fun PrimaryButton(
         Box(
             Modifier
                 .fillMaxHeight()
-                .width(70.dp)
+                .width(90.dp)
                 .graphicsLayer {
-                    translationX = (-52f + (size.width + 52f) * shine.value)
+                    translationX = (-70f + (size.width + 70f) * shine.value)
                 }
                 .background(
                     Brush.linearGradient(
                         colors = listOf(
                             Color.White.copy(alpha = 0f),
-                            Color.White.copy(alpha = 0.35f),
+                            Color.White.copy(alpha = 0.10f),
+                            Color.White.copy(alpha = 0.25f),
+                            Color.White.copy(alpha = 0.10f),
                             Color.White.copy(alpha = 0f)
                         ),
                         start = Offset.Zero,
-                        end = Offset(52f, 0f)
+                        end = Offset(90f, 0f)
                     )
                 )
         )
@@ -401,31 +430,43 @@ fun SecondaryTile(
                     style = Stroke(width = 1f)
                 )
             }
-            .shadow(2.dp, RoundedCornerShape(20.dp), clip = false)
             .clickable(
                 interactionSource = source,
                 indication = LocalIndication.current,
                 role = Role.Button,
                 onClick = onClick
             ),
-        contentAlignment = Alignment.Center
     ) {
-        Box(
-            Modifier.size(26.dp).clip(RoundedCornerShape(8.dp))
-                .background(MaterialTheme.colorScheme.primaryContainer),
-            contentAlignment = Alignment.Center
+        Column(
+            Modifier.fillMaxWidth().padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            icon()
-        }
-        Spacer(Modifier.width(14.dp))
-        Column(Modifier.fillMaxWidth()) {
+            Row(
+                Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    Modifier.size(26.dp).clip(RoundedCornerShape(8.dp))
+                        .background(MaterialTheme.colorScheme.primaryContainer),
+                    contentAlignment = Alignment.Center
+                ) {
+                    icon()
+                }
+                Spacer(Modifier.weight(1f))
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
             Text(
                 title,
                 style = MaterialTheme.typography.titleMedium.copy(
                     fontWeight = FontWeight.Bold,
                     fontSize = 16.sp
                 ),
-                color = MaterialTheme.colorScheme.onBackground,
+                color = DesignInk,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
@@ -433,17 +474,10 @@ fun SecondaryTile(
                 subtitle,
                 style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
                 color = DesignMuted,
-                maxLines = 1,
+                maxLines = 2,
                 overflow = TextOverflow.Ellipsis
             )
         }
-        Spacer(Modifier.width(8.dp))
-        Icon(
-            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.size(18.dp)
-        )
     }
 }
 
@@ -536,13 +570,6 @@ fun OfflinePill(modifier: Modifier = Modifier, text: String = "Works offline") {
         modifier
             .clip(RoundedCornerShape(50.dp))
             .drawBehind {
-                val ringSize = size.minDimension + (12f.dp.toPx() * pulse.value)
-                drawCircle(
-                    color = DesignOfflineText.copy(alpha = 0.18f * (1f - pulse.value)),
-                    center = Offset(size.width / 2f, size.height / 2f),
-                    radius = ringSize / 2f,
-                    style = Stroke(width = 2f.dp.toPx() * (1f - pulse.value))
-                )
                 drawRect(
                     Brush.verticalGradient(
                         listOf(Color.White.copy(alpha = 0.55f), Color.White.copy(alpha = 0.55f * 0.82f)),
@@ -571,12 +598,12 @@ fun OfflinePill(modifier: Modifier = Modifier, text: String = "Works offline") {
                 "✓",
                 style = MaterialTheme.typography.labelSmall.copy(
                     fontWeight = FontWeight.Bold,
-                    fontSize = 10.sp
+                    fontSize = 14.sp
                 ),
                 color = DesignOfflineText,
-                modifier = Modifier.size(10.dp)
+                modifier = Modifier.size(14.dp)
             )
-            Spacer(Modifier.width(4.dp))
+            Spacer(Modifier.width(6.dp))
             Text(
                 text,
                 style = MaterialTheme.typography.labelSmall.copy(
