@@ -212,7 +212,7 @@ fun LockerGateScreen(onUnlocked: () -> Unit, onBack: () -> Unit) {
                 }
 
                 Text(
-                    "No internet permission. Nothing in the locker leaves this phone.",
+                    "Private by default. Shared only by you.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center,
