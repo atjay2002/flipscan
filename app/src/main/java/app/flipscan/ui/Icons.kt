@@ -288,3 +288,88 @@ fun OpenIcon(modifier: Modifier = Modifier, color: Color, label: String? = null)
         drawPath(head, color, style = Stroke(width = stroke, join = StrokeJoin.Round, cap = StrokeCap.Round))
     }
 }
+
+/** Shield with a check: the "Works offline" pill. */
+@Composable
+fun ShieldCheckIcon(modifier: Modifier = Modifier, color: Color, label: String? = null) {
+    Canvas(modifier.iconLabel(label)) {
+        val w = size.width
+        val h = size.height
+        val stroke = (w * 0.10f).coerceAtLeast(1.3.dp.toPx())
+        val style = Stroke(width = stroke, join = StrokeJoin.Round, cap = StrokeCap.Round)
+        val shield = Path().apply {
+            moveTo(w * 0.50f, h * 0.04f)
+            lineTo(w * 0.90f, h * 0.18f)
+            lineTo(w * 0.90f, h * 0.48f)
+            quadraticBezierTo(w * 0.90f, h * 0.84f, w * 0.50f, h * 0.97f)
+            quadraticBezierTo(w * 0.10f, h * 0.84f, w * 0.10f, h * 0.48f)
+            lineTo(w * 0.10f, h * 0.18f)
+            close()
+        }
+        drawPath(shield, color, style = style)
+        val check = Path().apply {
+            moveTo(w * 0.30f, h * 0.50f)
+            lineTo(w * 0.45f, h * 0.65f)
+            lineTo(w * 0.72f, h * 0.35f)
+        }
+        drawPath(check, color, style = style)
+    }
+}
+
+/** Two offset pages: the "copy number" affordance. */
+@Composable
+fun CopyIcon(modifier: Modifier = Modifier, color: Color, label: String? = null) {
+    Canvas(modifier.iconLabel(label)) {
+        val w = size.width
+        val h = size.height
+        val stroke = (w * 0.09f).coerceAtLeast(1.1.dp.toPx())
+        val style = Stroke(width = stroke, join = StrokeJoin.Round, cap = StrokeCap.Round)
+        val back = Path().apply {
+            moveTo(w * 0.34f, h * 0.06f)
+            lineTo(w * 0.94f, h * 0.06f)
+            lineTo(w * 0.94f, h * 0.66f)
+        }
+        drawPath(back, color, style = style)
+        val front = Path().apply {
+            moveTo(w * 0.66f, h * 0.34f)
+            lineTo(w * 0.06f, h * 0.34f)
+            lineTo(w * 0.06f, h * 0.94f)
+            lineTo(w * 0.66f, h * 0.94f)
+            close()
+        }
+        drawPath(front, color, style = style)
+    }
+}
+
+/** Two arrows pointing at each other: the home empty-state mark. */
+@Composable
+fun FlipArrowIcon(modifier: Modifier = Modifier, color: Color, label: String? = null) {
+    Canvas(modifier.iconLabel(label)) {
+        val w = size.width
+        val h = size.height
+        val stroke = (w * 0.10f).coerceAtLeast(1.5.dp.toPx())
+        val style = Stroke(width = stroke, join = StrokeJoin.Round, cap = StrokeCap.Round)
+        val top = Path().apply {
+            moveTo(w * 0.08f, h * 0.32f)
+            lineTo(w * 0.52f, h * 0.32f)
+            lineTo(w * 0.52f, h * 0.10f)
+            lineTo(w * 0.86f, h * 0.40f)
+            lineTo(w * 0.52f, h * 0.70f)
+            lineTo(w * 0.52f, h * 0.48f)
+            lineTo(w * 0.08f, h * 0.48f)
+            close()
+        }
+        drawPath(top, color, style = style)
+        val bottom = Path().apply {
+            moveTo(w * 0.92f, h * 0.68f)
+            lineTo(w * 0.48f, h * 0.68f)
+            lineTo(w * 0.48f, h * 0.90f)
+            lineTo(w * 0.14f, h * 0.60f)
+            lineTo(w * 0.48f, h * 0.30f)
+            lineTo(w * 0.48f, h * 0.52f)
+            lineTo(w * 0.92f, h * 0.52f)
+            close()
+        }
+        drawPath(bottom, color, style = style)
+    }
+}

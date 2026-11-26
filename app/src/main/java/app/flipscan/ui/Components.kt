@@ -180,6 +180,34 @@ fun LightSystemBars() {
     }
 }
 
+/**
+ * Forces dark system bar icons on a screen that always paints a light surface.
+ *
+ * The redesigned dashboard is intentionally light-first even when the system theme is dark
+ * (dark-mode polish is deferred), so the theme-driven light icons would be invisible on it. The
+ * previous appearance is restored when the screen leaves composition.
+ */
+@Composable
+fun LightSurfaceSystemBars() {
+    val ctx = LocalContext.current
+    DisposableEffect(ctx) {
+        val window = ctx.findFragmentActivity()?.window
+        if (window == null) {
+            onDispose { }
+        } else {
+            val controller = WindowCompat.getInsetsController(window, window.decorView)
+            val previousStatus = controller.isAppearanceLightStatusBars
+            val previousNavigation = controller.isAppearanceLightNavigationBars
+            controller.isAppearanceLightStatusBars = true
+            controller.isAppearanceLightNavigationBars = true
+            onDispose {
+                controller.isAppearanceLightStatusBars = previousStatus
+                controller.isAppearanceLightNavigationBars = previousNavigation
+            }
+        }
+    }
+}
+
 /** Clickable with a ripple and a subtle press-in scale. */
 @Composable
 fun Modifier.pressable(onClick: () -> Unit, enabled: Boolean = true): Modifier {

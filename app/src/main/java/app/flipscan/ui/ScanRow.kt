@@ -1,6 +1,5 @@
 package app.flipscan.ui
 
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -19,6 +18,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -39,6 +39,9 @@ fun ScanRow(
     onActions: () -> Unit
 ) {
     val ctx = LocalContext.current
+    // Pick the mode-label colour from the surface actually behind the row, not the system theme:
+    // the home dashboard is pinned light even in a dark system theme.
+    val darkSurface = MaterialTheme.colorScheme.background.luminance() < 0.5f
     Row(
         Modifier.fillMaxWidth()
             .glass(MaterialTheme.shapes.medium)
@@ -52,13 +55,20 @@ fun ScanRow(
             maxSide = 240
         )
         Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
-            Text(scan.name, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(
+                scan.name,
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
             val date = DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT).format(Date(scan.createdAt))
             Text(
                 "$date · ${scan.pages.size} page(s)",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
@@ -66,7 +76,7 @@ fun ScanRow(
                     style = MaterialTheme.typography.labelSmall,
                     color = if (scan.mode == Mode.CARDS) {
                         MaterialTheme.colorScheme.primary
-                    } else if (isSystemInDarkTheme()) {
+                    } else if (darkSurface) {
                         Color(0xFF5EEAD4)
                     } else {
                         Color(0xFF0F766E)

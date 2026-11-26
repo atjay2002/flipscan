@@ -264,7 +264,8 @@ private fun ResultContent(scan: Scan, onBack: () -> Unit, onScanChanged: (Scan) 
 
             Column(
                 Modifier.weight(1f).verticalScroll(rememberScrollState())
-                    .padding(start = 16.dp, end = 16.dp, top = 6.dp, bottom = 16.dp),
+                    // The action bar sits below this scroll area; this keeps the last card clear of it.
+                    .padding(start = 16.dp, end = 16.dp, top = 6.dp, bottom = 100.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 PaperPanel(scan, settings, ::update)

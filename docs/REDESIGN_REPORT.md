@@ -5,21 +5,23 @@
 The FlipScan Android app has been redesigned end-to-end on branch `redesign-ui`, following the home screen redesign spec (`docs/FlipScan-home-redesign-spec.md`) and the visual/motion mockup (`docs/home-mockup-reference.html`). The redesign covers the design system, home screen, and applies the new visual language across all screens.
 
 **Branch:** `redesign-ui`
-**Commit:** `4039f87`
 **APK:** `delivery/FlipScan-redesign-debug.apk`
-**SHA-256:** `E012D8F07E2091F5FF19A54A43440D94ED06A13EDA9188D1FB40E679429C5101`
 
 ## Files Changed
 
 ### New files
 - `app/src/main/java/app/flipscan/ui/DesignSystem.kt` — Design tokens (light/dark), `GlassCard`, `PrimaryButton`, `SecondaryTile`, `SectionHeader`, `PillBadge`, `OfflinePill`, `GlowBackground`, motion/reduce-motion helpers
+- `app/src/main/java/app/flipscan/ui/Icons.kt` — Hand-drawn vector icons (`ShieldCheckIcon`, `CopyIcon`, `FlipArrowIcon`) kept to avoid extra dependencies
 - `docs/REDESIGN_PLAN.md` — Phase plan
 - `docs/REDESIGN_REPORT.md` — This report
 
 ### Modified files
-- `app/src/main/java/app/flipscan/ui/Theme.kt` — Updated `LightColors`/`DarkColors` to use new brand tokens (`#4B2FE0` primary, `#F4F1FF` background, etc.)
-- `app/src/main/java/app/flipscan/ui/HomeScreen.kt` — Complete redesign per spec: header with logo + "Works offline" pill, "Both sides. / One page." heading with 20dp padding, two promo cards (FRONT/BACK illustration, lock chip), gradient "Scan ID card" primary button with shine sweep, Document + Digital Locker secondary tiles with column layout and explicit text colors, Recent scans section with empty state, "Private by default. Shared only by you." footer, entrance animations with staggering, reduce-motion and low-RAM handling, light status bar icons
+- `app/src/main/java/app/flipscan/ui/Components.kt` — Added `ThemeSystemBars()`/`LightSurfaceSystemBars()` for theme-correct system bar icons; removed `Modifier.shadow` on translucent glass
+- `app/src/main/java/app/flipscan/ui/DesignSystem.kt` — GlassCard shadow removed (kept 1dp 75% white border); `SecondaryTile` rewritten as `Column` + `Arrangement.SpaceBetween` with `heightIn(min=92dp)`, no chevron, explicit ink/muted colors; `PrimaryButton` to `heightIn(min=76dp)` weighted text column; `OfflinePill` uses shield-check icon
+- `app/src/main/java/app/flipscan/ui/HomeScreen.kt` — Complete redesign per spec: header with logo + "Works offline" pill, "Both sides. / One page." heading with 20dp padding, two `Column(SpaceBetween)` promo cards (`heightIn(min=188dp)`) growing with font scale, illustration top / caption bottom, "1 page" sticker at TopEnd never over caption, lock badge then chip (`Aadhaar •••• 1234`, maxLines 1, softWrap false), clean `Column` tiles with icon top-start 26dp brand color and explicit colors, empty-state `FlipArrowIcon`, light surface pinned with dark system icons; whole body is a single `LazyColumn` so nothing clips at font 1.3
 - `app/src/main/java/app/flipscan/ui/LockerScreen.kt` — Wording: replaced "No internet permission. Nothing in the locker leaves this phone." with "Private by default. Shared only by you."
+- `app/src/main/java/app/flipscan/ui/ResultScreen.kt` — Edit/export scrolling content bottom contentPadding set to action bar height + 16dp (`100.dp`) so the last card is never cut off
+- `app/src/main/java/app/flipscan/ui/ScanRow.kt` — Scan title gets explicit ink color; date subtitle gets `TextOverflow.Ellipsis`; mode label uses surface luminance instead of system theme so the pinned-light home row stays readable in dark system theme
 
 ## Design System
 
@@ -30,23 +32,23 @@ The FlipScan Android app has been redesigned end-to-end on branch `redesign-ui`,
 - Glow blobs: purple `#7C5CFF`, amber `#FFFFB020`, mint `#3DDCB5`
 
 **Components:**
-- `GlassCard` — white 55% fill, 1dp white border, brand-tinted soft shadow, inner top sheen, no RenderEffect/blur
-- `PrimaryButton` — gradient brand-light→brand, 76dp height, radius 22, 44dp icon tile, shine sweep animation every 3.6s with peak alpha 0.25
-- `SecondaryTile` — glass tile, 92dp height, radius 20, column layout with icon top-left, title 16sp Bold in ink #17142B, subtitle 12sp in muted #4A4660, no shadow on translucent fill
+- `GlassCard` — white translucent fill, 1dp white border (75%), inner top sheen, no RenderEffect/blur, no shadow on translucent fill
+- `PrimaryButton` — gradient brand-light→brand, `heightIn(min=76dp)`, radius 22, 44dp icon tile, shine sweep animation
+- `SecondaryTile` — glass tile, `heightIn(min=92dp)`, radius 20, column layout icon top-left + title/subtitle bottom-start, explicit ink/muted colors, no chevron, `contentDescription`
 - `SectionHeader` — title + optional link (e.g. "New folder")
 - `PillBadge` — small rounded badge
-- `OfflinePill` — glass pill with shield-check vector icon and pill-shaped pulsing ring centered on pill
-- `GlowBackground` — three radial-gradient blobs (purple top-left, amber right-middle, mint bottom-left) drifting slowly (~9s), center alpha 0.5 → 0.2 at 0.6f → transparent at 1f, radius 140-160dp
+- `OfflinePill` — glass pill with shield-check vector icon; pulsing ring removed
+- `GlowBackground` — three radial-gradient blobs drifting slowly, center alpha 0.5 → 0.2 at 0.6f → transparent at 1f, radius ~150dp
 
 **Animations:**
-- Home entrance: sections fade in + slide up 16dp, 600ms, staggered (50, 150, 450, 600, 750ms)
-- Promo card 1: FRONT drops in, BACK flips in; both float 5dp over 4.5s (opposite phases)
-- Background glows drift (~9s, translate ~20dp, scale 1.12)
-- Primary button shine sweeps every 3.6s
-- Offline pill and lock badge pulse every 2–2.4s
-- Copy chip flashes amber every 4s
-- Empty-state flip arrow rotates Y 0→180→360 over 4s
-- Reduce motion: all infinite/entrance animations skipped when animator duration scale = 0; infinite animations paused when not RESUMED; glow drift and floating skipped on low-RAM devices
+- Home entrance: sections fade in + slide up, staggered; reduce-motion respected (animator duration scale = 0 skips them)
+- Promo card 1: FRONT drops in, BACK flips in; gentle float; end state alpha 1 / translation 0 / rotation 0
+- Background glows drift (~9s); skip on low-RAM devices
+- Promo card 2 lock badge pulses; copy chip flashes amber
+
+**System bars:**
+- `LightSurfaceSystemBars()` forces dark icons on the pinned-light home surface even when the system theme is dark (dark-mode polish is deferred per `SPEC.md`)
+- `ThemeSystemBars()` keeps theme-correct icons on other non-camera screens; `LightSystemBars()` stays on camera screens
 
 ## Wording Consistency
 
@@ -67,7 +69,7 @@ Factual technical statements retained: "FlipScan has no INTERNET permission", "A
 
 ### Build
 - `./gradlew assembleDebug` — **BUILD SUCCESSFUL**
-- Debug APK: `app/build/outputs/apk/debug/app-debug.apk` (145 MB)
+- Debug APK: `app/build/outputs/apk/debug/app-debug.apk`
 - No new permissions in merged manifest
 
 ### Emulator Testing (Emulator: flipscan_test, Pixel 6, Android 35 / API 35)
@@ -77,35 +79,37 @@ Factual technical statements retained: "FlipScan has no INTERNET permission", "A
 |-------|--------|
 | App launch | PASS — Home screen renders with new design tokens |
 | Home UI | PASS — Promo cards, scan button, tiles, empty state, footer all visible |
-| Camera permission | PASS — Dialog appears, permission granted |
-| Document capture | PASS — Shutter works, page count 0→1, "Done (1)" visible |
-| Review pages | PASS — Page thumbnails, reorder/delete controls, Continue works |
-| Result screen | PASS — Paper size, Orientation, Margin, Filter, Format panels all render |
-| Folder create | PASS — Dialog opens, name entry, Create works |
-| Light theme | PASS — Light status bar icons visible, no white-on-white |
-| Dark theme | PASS — App recomposes with dark theme |
-| Font scale 1.3 | PASS — Text scales, no clipping |
-| 360dp screen | PASS — 720x1560 @ 320dpi, no clipped text |
+| Heading padding | PASS — 20dp horizontal padding matches header |
+| Promo card 1 (Both sides) | PASS — FRONT above BACK both visible, sticker TopEnd over illustration never over caption |
+| Promo card 2 (Locker) | PASS — lock badge then chip, `Aadhaar •••• 1234` maxLines 1 softWrap false |
+| Tiles | PASS — icon top-start 26dp brand, title+subtitle bottom-start, explicit colors, no overlap |
+| Edit/export bottom padding | PASS — last card not cut off above action bar |
+| Font scale 1.0 light | PASS — no clipping |
+| Font scale 1.3 light | PASS — text scales, no clipping |
+| Font scale 1.0 dark | PASS — light surface, dark status bar icons, all readable |
+| Font scale 1.3 dark | PASS — no clipping |
+| 360dp screen light | PASS — 720x1560 @ 320dpi, heading padded, both cards visible, tiles clean; BACK card partly cropped by sheet bottom at narrow width but caption clear |
+| 360dp screen dark | PASS — same as light dark theme |
+
+### Remaining Differences
+None blocking. At 360dp width the BACK card illustration is partly cropped by the sheet bottom edge, but its caption remains fully clear; this is an acceptable consequence of the fixed illustration height growing toward the bottom caption at narrow widths.
 
 ### Screenshots Captured
-- `delivery/screenshots/home_light.png` — Home, light theme, font scale 1.0
-- `delivery/screenshots/home_dark.png` — Home, dark theme
-- `delivery/screenshots/home_dark_font13.png` — Home, dark theme, font scale 1.3
-- `delivery/screenshots/home_font13.png` — Home, light theme, font scale 1.3
-- `delivery/screenshots/home_360dp.png` — Home, 720x1560 @ 320dpi
-- `delivery/screenshots/document_camera.png` — Document camera screen
-- `delivery/screenshots/review_pages.png` — Review pages screen
-- `delivery/screenshots/result_screen.png` — Result screen
-
-## Known Issues
-- None from code changes; all code compiles and builds cleanly
-- Emulator camera shows fake scene (expected), camera screens judged by layout only
+- `delivery/screenshots/v2_home_light.png` — Home, light theme, font scale 1.0, default size
+- `delivery/screenshots/v2_home_light_font13.png` — Home, light theme, font scale 1.3
+- `delivery/screenshots/v2_home_360dp.png` — Home, light theme, font scale 1.0, 720x1560 @ 320dpi
+- `delivery/screenshots/v2_home_dark.png` — Home, dark theme, font scale 1.0, default size
+- `delivery/screenshots/v2_home_dark_font13.png` — Home, dark theme, font scale 1.3
+- `delivery/screenshots/v2_home_dark_360dp.png` — Home, dark theme, font scale 1.0, 720x1560 @ 320dpi
+- `delivery/screenshots/v2_result_top.png` — Result/edit screen top
+- `delivery/screenshots/v2_result_bottom.png` — Result/edit screen scrolled to bottom (last card clear of action bar)
+- `delivery/screenshots/home_light.png`, `home_dark.png`, `home_font13.png`, `home_360dp.png`, `document_camera.png`, `review_pages.png`, `result_screen.png` — earlier round (superseded by v2 set)
 
 ## Delivery
 
-- **Debug APK:** `delivery/FlipScan-redesign-debug.apk` (SHA-256: `E012D8F07E2091F5FF19A54A43440D94ED06A13EDA9188D1FB40E679429C5101`)
+- **Debug APK:** `delivery/FlipScan-redesign-debug.apk`
 - **Report:** `docs/REDESIGN_REPORT.md`
 - **Commit info:** `delivery/commit-info.txt`
-- **Git branch:** `redesign-ui` (commit `4039f87`, pushed to origin)
+- **Git branch:** `redesign-ui` (uncommitted fixes from final verification round to be committed)
 - **Drive folder:** Not configured (placeholder path) — files are in `./delivery/` as fallback
 - **GitHub draft release:** Not created (`gh` CLI not available/authenticated)

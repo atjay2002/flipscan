@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -203,7 +204,7 @@ fun GlassCard(
     val tokens = LocalGlass.current
     val fill = if (strong) tokens.fillStrong else tokens.fill
     val baseColor = if (strong) Color.White.copy(alpha = 0.80f) else Color.White.copy(alpha = 0.55f)
-    val borderAlpha = if (strong) 0.90f else 0.75f
+    val borderAlpha = 0.75f
 
     Column(
         modifier
@@ -226,19 +227,12 @@ fun GlassCard(
                     Brush.verticalGradient(
                         listOf(
                             Color.White.copy(alpha = borderAlpha),
-                            Color.White.copy(alpha = borderAlpha * 0.30f)
+                            Color.White.copy(alpha = borderAlpha * 0.40f)
                         )
                     ),
                     style = Stroke(width = 1f)
                 )
             }
-            .shadow(
-                8.dp,
-                shape,
-                clip = false,
-                ambientColor = DesignBrand.copy(alpha = 0.12f),
-                spotColor = DesignBrand.copy(alpha = 0.06f)
-            )
             .padding(12.dp)
     ) {
         content()
@@ -283,7 +277,7 @@ fun PrimaryButton(
     Box(
         modifier
             .fillMaxWidth()
-            .height(76.dp)
+            .heightIn(min = 76.dp)
             .graphicsLayer { scaleX = scale; scaleY = scale }
             .clip(RoundedCornerShape(22.dp))
             .background(
@@ -339,7 +333,7 @@ fun PrimaryButton(
         )
 
         Row(
-            Modifier.padding(horizontal = 18.dp, vertical = 4.dp),
+            Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Box(
@@ -350,7 +344,7 @@ fun PrimaryButton(
                 icon()
             }
             Spacer(Modifier.width(14.dp))
-            Column {
+            Column(Modifier.weight(1f)) {
                 Text(
                     title,
                     style = MaterialTheme.typography.titleMedium.copy(
@@ -358,6 +352,8 @@ fun PrimaryButton(
                         fontSize = 18.sp
                     ),
                     color = Color.White,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.padding(bottom = 1.dp)
                 )
                 Text(
@@ -366,10 +362,12 @@ fun PrimaryButton(
                         fontWeight = FontWeight.Medium,
                         fontSize = 13.sp
                     ),
-                    color = Color.White.copy(alpha = 0.85f)
+                    color = Color.White.copy(alpha = 0.85f),
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
-            Spacer(Modifier.weight(1f))
+            Spacer(Modifier.width(8.dp))
             Icon(
                 imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
                 contentDescription = null,
@@ -400,10 +398,10 @@ fun SecondaryTile(
         label = "secondaryTilePress"
     )
 
-    Box(
+    Column(
         modifier
             .fillMaxWidth()
-            .height(92.dp)
+            .heightIn(min = 92.dp)
             .graphicsLayer { scaleX = scale; scaleY = scale }
             .clip(RoundedCornerShape(20.dp))
             .drawBehind {
@@ -418,7 +416,7 @@ fun SecondaryTile(
                 )
                 drawRect(
                     Brush.verticalGradient(
-                        0f to Color.White.copy(alpha = 0.10f),
+                        0f to Color.White.copy(alpha = 0.12f),
                         0.62f to Color.Transparent,
                         endY = size.height.coerceAtLeast(1f)
                     )
@@ -435,31 +433,17 @@ fun SecondaryTile(
                 indication = LocalIndication.current,
                 role = Role.Button,
                 onClick = onClick
-            ),
+            )
+            .semantics { contentDescription = "$title. $subtitle" }
+            .padding(12.dp),
+        verticalArrangement = Arrangement.SpaceBetween
     ) {
+        Box(Modifier.size(26.dp), contentAlignment = Alignment.Center) {
+            icon()
+        }
         Column(
-            Modifier.fillMaxWidth().padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            Modifier.fillMaxWidth().padding(top = 8.dp)
         ) {
-            Row(
-                Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Box(
-                    Modifier.size(26.dp).clip(RoundedCornerShape(8.dp))
-                        .background(MaterialTheme.colorScheme.primaryContainer),
-                    contentAlignment = Alignment.Center
-                ) {
-                    icon()
-                }
-                Spacer(Modifier.weight(1f))
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(18.dp)
-                )
-            }
             Text(
                 title,
                 style = MaterialTheme.typography.titleMedium.copy(
@@ -467,7 +451,7 @@ fun SecondaryTile(
                     fontSize = 16.sp
                 ),
                 color = DesignInk,
-                maxLines = 1,
+                maxLines = 2,
                 overflow = TextOverflow.Ellipsis
             )
             Text(
@@ -558,14 +542,6 @@ fun PillBadge(
 
 @Composable
 fun OfflinePill(modifier: Modifier = Modifier, text: String = "Works offline") {
-    val pulse = remember { Animatable(0f) }
-    LaunchedEffect(Unit) {
-        while (true) {
-            pulse.animateTo(1f, animationSpec = tween(1100, easing = FastOutSlowInEasing))
-            pulse.animateTo(0f, animationSpec = tween(1100, easing = FastOutSlowInEasing))
-        }
-    }
-
     Box(
         modifier
             .clip(RoundedCornerShape(50.dp))
@@ -590,25 +566,17 @@ fun OfflinePill(modifier: Modifier = Modifier, text: String = "Works offline") {
                     style = Stroke(width = 1f)
                 )
             }
-            .padding(horizontal = 10.dp, vertical = 6.dp),
+            .padding(horizontal = 9.dp, vertical = 6.dp),
         contentAlignment = Alignment.Center
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                "✓",
-                style = MaterialTheme.typography.labelSmall.copy(
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 14.sp
-                ),
-                color = DesignOfflineText,
-                modifier = Modifier.size(14.dp)
-            )
+            ShieldCheckIcon(Modifier.size(14.dp), DesignOfflineText)
             Spacer(Modifier.width(6.dp))
             Text(
                 text,
                 style = MaterialTheme.typography.labelSmall.copy(
                     fontWeight = FontWeight.Bold,
-                    fontSize = 13.sp
+                    fontSize = 12.sp
                 ),
                 color = DesignOfflineText
             )
