@@ -4,6 +4,8 @@ import android.widget.Toast
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -43,14 +45,19 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.draw.graphicsLayer
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import app.flipscan.data.Folder
 import app.flipscan.data.FolderStore
 import app.flipscan.data.Scan
@@ -80,7 +87,6 @@ fun HomeScreen(
     var renamingFolder by remember { mutableStateOf<Folder?>(null) }
     var deletingFolder by remember { mutableStateOf<Folder?>(null) }
 
-    // Reads small JSON files on a background thread; runs again whenever Home is shown or data changed.
     LaunchedEffect(reload) {
         val data = withContext(Dispatchers.IO) { ScanStore.list(ctx) to FolderStore.list(ctx) }
         scans = data.first
@@ -90,124 +96,258 @@ fun HomeScreen(
 
     fun countIn(folderId: String) = scans.count { it.folderId == folderId }
 
-    // Soft entrance: the whole page fades and rises once.
-    val enter = remember { Animatable(0f) }
-    val enterMs = motionMs(420)
-    LaunchedEffect(Unit) { enter.animateTo(1f, tween(enterMs, easing = FastOutSlowInEasing)) }
+    Box(
+        Modifier
+            .fillMaxSize()
+            .background(DesignBackground)
+            .systemBarsPadding()
+            .then(GlowBackground(enabled = true))
+    ) {
+        Column(Modifier.fillMaxSize()) {
+            // ── Entrance-animated sections ──
+            val reduce = rememberReduceMotion()
+            val enterMs = if (reduce) 0 else motionMs(420)
 
-    Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).ambientGlow().systemBarsPadding()) {
-        LazyColumn(
-            Modifier.fillMaxSize().graphicsLayer {
-                alpha = enter.value
-                translationY = (1f - enter.value) * 36f
-            },
-            contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = 14.dp, bottom = 28.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            item(key = "brand") { BrandHeader() }
-
-            item(key = "actions") {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    ActionCard(
-                        title = "ID card",
-                        subtitle = "Aadhaar, PAN, DL, voter ID",
-                        filled = true,
-                        icon = { CardStackIcon(Modifier.size(26.dp), Color.White) },
-                        onClick = onDoubleSide
-                    )
-                    ActionCard(
-                        title = "Document",
-                        subtitle = "Passbooks, certificates, notes",
-                        filled = false,
-                        icon = { DocumentIcon(Modifier.size(26.dp), MaterialTheme.colorScheme.onSecondaryContainer) },
-                        onClick = onRegular
-                    )
-                }
-            }
-
-            item(key = "locker") { LockerEntryCard(onClick = onLocker) }
-
-            item(key = "foldersHeader") {
-                Row(
-                    Modifier.fillMaxWidth().padding(top = 14.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text("Folders", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-                    if (folders.isNotEmpty()) CountBadge("${folders.size}")
-                    TextButton(onClick = { creatingFolder = true }) { Text("New folder") }
-                }
-            }
-
-            if (folders.isEmpty()) {
-                item(key = "foldersEmpty") {
-                    Text(
-                        "Group scans into folders — a project, a person, a month. Move any scan into one " +
-                            "from its ⋮ menu.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            } else {
-                item(key = "folders") {
-                    LazyRow(
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        contentPadding = PaddingValues(end = 4.dp)
-                    ) {
-                        items(folders, key = { it.id }) { folder ->
-                            FolderCard(
-                                folder = folder,
-                                scanCount = countIn(folder.id),
-                                onOpen = { onOpenFolder(folder) },
-                                onActions = { folderMenu = folder }
-                            )
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = DesignPaddingHorizontal, top = 14.dp)
+                    .graphicsLayer {
+                        if (!reduce) {
+                            alpha = 1f
+                            translationY = 0f
                         }
                     }
+            ) {
+                // Header row: logo + title + offline pill
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .then(if (reduce) Modifier else Modifier.fadeIn(animationSpec = tween(enterMs, delayMillis = 50)))
+                        .then(if (reduce) Modifier else Modifier.slideInVertically(animationSpec = tween(enterMs, delayMillis = 50), initialOffsetY = { 16.dp }))
+                        , verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        Modifier.size(40.dp).clip(RoundedCornerShape(12.dp))
+                            .background(DesignBrand),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        BrandMark(Modifier.size(24.dp))
+                    }
+                    Spacer(Modifier.width(10.dp))
+                    Text(
+                        "FlipScan",
+                        style = MaterialTheme.typography.titleLarge.copy(
+                            fontWeight = FontWeight.ExtraBold,
+                            fontSize = 20.sp
+                        ),
+                        color = DesignInk
+                    )
+                    Spacer(Modifier.weight(1f))
+                    OfflinePill(text = "Works offline")
+                }
+
+                Spacer(Modifier.height(8.dp))
+
+                // Heading: "Both sides." / "One page."
+                Column(
+                    Modifier
+                        .fillMaxWidth()
+                        .then(if (reduce) Modifier else Modifier.fadeIn(animationSpec = tween(enterMs, delayMillis = 150)))
+                        .then(if (reduce) Modifier else Modifier.slideInVertically(animationSpec = tween(enterMs, delayMillis = 150), initialOffsetY = { 16.dp }))
+                ) {
+                    Text(
+                        "Both sides.",
+                        style = MaterialTheme.typography.displaySmall.copy(
+                            fontWeight = FontWeight.ExtraBold,
+                            fontSize = 34.sp,
+                            letterSpacing = (-1).sp
+                        ),
+                        color = DesignInk,
+                        lineHeight = 36.sp
+                    )
+                    Text(
+                        "One page.",
+                        style = MaterialTheme.typography.displaySmall.copy(
+                            fontWeight = FontWeight.ExtraBold,
+                            fontSize = 34.sp,
+                            letterSpacing = (-1).sp
+                        ),
+                        color = DesignBrand,
+                        lineHeight = 36.sp
+                    )
                 }
             }
 
-            item(key = "recentHeader") {
-                Row(
-                    Modifier.fillMaxWidth().padding(top = 14.dp, bottom = 2.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text("Recent scans", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-                    if (scans.isNotEmpty()) CountBadge("${scans.size}")
-                }
+            Spacer(Modifier.height(8.dp))
+
+            // ── Promo row: two equal glass cards ──
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = DesignPaddingHorizontal)
+                    .then(if (reduce) Modifier else Modifier.fadeIn(animationSpec = tween(enterMs, delayMillis = 450)))
+                    .then(if (reduce) Modifier else Modifier.slideInVertically(animationSpec = tween(enterMs, delayMillis = 450), initialOffsetY = { 16.dp })),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.Top
+            ) {
+                // Card 1: Both sides, one page
+                PromoCardBothSides(
+                    onClick = onDoubleSide,
+                    modifier = Modifier.weight(1f).height(188.dp)
+                )
+                // Card 2: Digital Locker
+                PromoCardLocker(
+                    onClick = onLocker,
+                    modifier = Modifier.weight(1f).height(188.dp)
+                )
+            }
+
+            Spacer(Modifier.height(14.dp))
+
+            // ── Primary button: Scan ID card ──
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = DesignPaddingHorizontal)
+                    .then(if (reduce) Modifier else Modifier.fadeIn(animationSpec = tween(enterMs, delayMillis = 600)))
+                    .then(if (reduce) Modifier else Modifier.slideInVertically(animationSpec = tween(enterMs, delayMillis = 600), initialOffsetY = { 16.dp }))
+            ) {
+                PrimaryButton(
+                    onClick = onDoubleSide,
+                    icon = {
+                        CameraIcon(Modifier.size(26.dp), Color.White)
+                    },
+                    title = "Scan ID card",
+                    subtitle = "Aadhaar, PAN, DL, voter ID"
+                )
+            }
+
+            Spacer(Modifier.height(14.dp))
+
+            // ── Tiles row: Document + Digital Locker ──
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = DesignPaddingHorizontal)
+                    .then(if (reduce) Modifier else Modifier.fadeIn(animationSpec = tween(enterMs, delayMillis = 750)))
+                    .then(if (reduce) Modifier else Modifier.slideInVertically(animationSpec = tween(enterMs, delayMillis = 750), initialOffsetY = { 16.dp })),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.Top
+            ) {
+                SecondaryTile(
+                    onClick = onRegular,
+                    icon = { DocumentIcon(Modifier.size(26.dp), DesignBrand) },
+                    title = "Document",
+                    subtitle = "Passbooks, notes",
+                    modifier = Modifier.weight(1f)
+                )
+                SecondaryTile(
+                    onClick = onLocker,
+                    icon = { LockIcon(Modifier.size(26.dp), DesignBrand) },
+                    title = "Digital Locker",
+                    subtitle = "Open your vault",
+                    modifier = Modifier.weight(1f)
+                )
+            }
+
+            Spacer(Modifier.height(4.dp))
+
+            // ── Section: Recent scans ──
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = DesignPaddingHorizontal, top = 4.dp, bottom = 2.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                SectionHeader(
+                    title = "Recent scans",
+                    link = "New folder",
+                    onLinkClick = { creatingFolder = true }
+                )
             }
 
             if (!loaded) {
-                item(key = "loading") {
-                    Box(Modifier.fillMaxWidth().height(120.dp), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.5.dp)
-                    }
+                Box(
+                    Modifier.fillMaxWidth().height(120.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.5.dp)
                 }
             } else if (scans.isEmpty()) {
-                item(key = "empty") {
-                    EmptyState(
-                        "Nothing here yet",
-                        "Scans you save stay on this phone and appear here, ready to open, edit or export again."
-                    )
+                GlassCard(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = DesignPaddingHorizontal)
+                        .then(if (reduce) Modifier else Modifier.fadeIn(animationSpec = tween(enterMs, delayMillis = 750)))
+                        .then(if (reduce) Modifier else Modifier.slideInVertically(animationSpec = tween(enterMs, delayMillis = 750), initialOffsetY = { 16.dp })),
+                    strong = true
+                ) {
+                    Column(
+                        Modifier.fillMaxWidth(),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Box(
+                            Modifier.size(40.dp).clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.primaryContainer),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            FlipIcon(Modifier.size(20.dp), DesignBrand)
+                        }
+                        Spacer(Modifier.height(14.dp))
+                        Text(
+                            "Scan your first ID",
+                            style = MaterialTheme.typography.titleMedium.copy(
+                                fontWeight = FontWeight.ExtraBold,
+                                fontSize = 16.sp
+                            ),
+                            color = DesignInk,
+                            modifier = Modifier.padding(top = 2.dp)
+                        )
+                        Spacer(Modifier.height(2.dp))
+                        Text(
+                            "Saved scans stay on this phone.",
+                            style = MaterialTheme.typography.bodySmall.copy(fontSize = 13.sp),
+                            color = DesignMuted,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                            modifier = Modifier.padding(top = 2.dp, horizontal = 12.dp)
+                        )
+                    }
                 }
             } else {
-                items(scans, key = { it.id }) { scan ->
-                    ScanRow(
-                        scan = scan,
-                        folderName = folders.firstOrNull { it.id == scan.folderId }?.name,
-                        onActions = { actionsFor = scan }
-                    )
+                LazyColumn(
+                    Modifier.fillMaxWidth(),
+                    contentPadding = PaddingValues(horizontal = DesignPaddingHorizontal, top = 4.dp, bottom = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    items(scans, key = { it.id }) { scan ->
+                        ScanRow(
+                            scan = scan,
+                            folderName = folders.firstOrNull { it.id == scan.folderId }?.name,
+                            onActions = { actionsFor = scan }
+                        )
+                    }
                 }
             }
 
-            item(key = "privacy") {
-                Text(
-                    "No internet permission. Nothing leaves your phone.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.fillMaxWidth().padding(top = 10.dp)
-                )
-            }
+            Spacer(Modifier.height(10.dp))
+
+            // ── Footer ──
+            Text(
+                "Private by default. Shared only by you.",
+                style = MaterialTheme.typography.bodySmall.copy(
+                    fontWeight = FontWeight.Medium,
+                    fontSize = 12.sp
+                ),
+                color = DesignMuted,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = DesignPaddingHorizontal, bottom = 28.dp)
+            )
         }
 
+        // ── Scan actions sheet (unchanged behavior) ──
         ScanActionsHost(
             scan = actionsFor,
             folders = folders,
@@ -217,6 +357,7 @@ fun HomeScreen(
         )
     }
 
+    // ── Folder dialogs (unchanged behavior) ──
     if (creatingFolder) {
         FolderNameDialog(
             title = "New folder",
@@ -259,7 +400,6 @@ fun HomeScreen(
                 deletingFolder = null
                 scope.launch {
                     withContext(Dispatchers.IO) {
-                        // Scans move back to the main collection; nothing on disk is deleted.
                         ScanStore.clearFolder(ctx, folder.id)
                         FolderStore.delete(ctx, folder.id)
                     }
@@ -280,171 +420,392 @@ fun HomeScreen(
     }
 }
 
+// ---------------------------------------------------------------------------------------------
+// Promo card: Both sides, one page (ID card illustration)
+// ---------------------------------------------------------------------------------------------
+
 @Composable
-private fun BrandHeader() {
-    Column {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+private fun PromoCardBothSides(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val reduce = rememberReduceMotion()
+    val lowRam = rememberIsLowRam()
+
+    // Entrance animation for the front card (drop in) and back card (flip in)
+    var frontOffset by remember { Animatable(0f) }
+    var frontRotation by remember { Animatable(0f) }
+    var backRotationX by remember { Animatable(0f) }
+
+    if (!reduce && !lowRam) {
+        LaunchedEffect(Unit) {
+            frontOffset.animateTo(
+                0f,
+                animationSpec = tween(800, easing = FastOutSlowInEasing)
+            )
+            frontRotation.animateTo(
+                -3f,
+                animationSpec = tween(800, easing = FastOutSlowInEasing)
+            )
+            delay(700)
+            backRotationX.animateTo(
+                0f,
+                animationSpec = tween(900, easing = FastOutSlowInEasing)
+            )
+        }
+        // Continuous floating animation
+        LaunchedEffect(Unit) {
+            while (true) {
+                frontOffset.animateTo(
+                    -5f.dp.toPx(),
+                    animationSpec = tween(2250, easing = FastOutSlowInEasing)
+                )
+                frontOffset.animateTo(
+                    0f,
+                    animationSpec = tween(2250, easing = FastOutSlowInEasing)
+                )
+                delay(4500)
+            }
+        }
+        LaunchedEffect(Unit) {
+            while (true) {
+                delay(900)
+                backRotationX.animateTo(
+                    5f.dp.toPx(),
+                    animationSpec = tween(2250, easing = FastOutSlowInEasing)
+                )
+                backRotationX.animateTo(
+                    -5f.dp.toPx(),
+                    animationSpec = tween(2250, easing = FastOutSlowInEasing)
+                )
+                delay(3600)
+            }
+        }
+    }
+
+    GlassCard(
+        modifier = modifier
+            .semantics { contentDescription = "Scan ID card, both sides on one page" }
+            .role(Role.Button)
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(24.dp),
+        strong = true
+    ) {
+        Box(Modifier.fillMaxSize()) {
+            // Mini white sheet behind the cards
             Box(
-                Modifier.size(42.dp).clip(RoundedCornerShape(13.dp))
-                    .background(Brush.linearGradient(listOf(Indigo, Violet))),
+                Modifier
+                    .size(100.dp, 116.dp)
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(Color.White)
+                    .shadow(10.dp, RoundedCornerShape(6.dp), clip = false, ambientColor = DesignBrand.copy(alpha = 0.26f), spotColor = DesignBrand.copy(alpha = 0.13f))
+                    .align(Alignment.CenterHorizontally)
+                    .padding(top = 12.dp),
+                contentAlignment = Alignment.TopCenter
+            ) {
+                // FRONT card
+                Box(
+                    Modifier
+                        .size(78.dp, 46.dp)
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(DesignBrand)
+                        .shadow(5.dp, RoundedCornerShape(6.dp), clip = false, ambientColor = DesignBrand.copy(alpha = 0.35f), spotColor = DesignBrand.copy(alpha = 0.17f))
+                        .align(Alignment.TopCenter)
+                        .padding(top = 10.dp)
+                        .offset { IntOffset(0, frontOffset.value.toInt()) }
+                        .graphicsLayer { rotationZ = frontRotation.value },
+                    contentAlignment = Alignment.Center
+                ) {
+                    CardDetailsFront()
+                }
+
+                // BACK card
+                Box(
+                    Modifier
+                        .size(78.dp, 46.dp)
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(Color(0xFF17142B))
+                        .shadow(5.dp, RoundedCornerShape(6.dp), clip = false, ambientColor = Color.Black.copy(alpha = 0.35f), spotColor = Color.Black.copy(alpha = 0.17f))
+                        .align(Alignment.TopCenter)
+                        .padding(top = 62.dp)
+                        .graphicsLayer { rotationX = backRotationX.value }
+                        .cameraDistance(8f.dp.toPx()),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CardDetailsBack()
+                }
+
+                // Amber "1 page" sticker
+                Box(
+                    Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(top = 60.dp, end = 8.dp)
+                        .background(DesignAccent)
+                        .clip(RoundedCornerShape(50.dp))
+                        .padding(horizontal = 9.dp, vertical = 5.dp)
+                        .graphicsLayer { rotationZ = 6f },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        "1 page",
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            fontWeight = FontWeight.ExtraBold,
+                            fontSize = 10.sp
+                        ),
+                        color = DesignInk
+                    )
+                }
+            }
+
+            // Caption
+            Column(
+                Modifier.align(Alignment.BottomCenter).padding(bottom = 12.dp, horizontal = 12.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    "Both sides, one page",
+                    style = MaterialTheme.typography.titleMedium.copy(
+                        fontWeight = FontWeight.ExtraBold,
+                        fontSize = 14.sp,
+                        letterSpacing = 0.2.sp
+                    ),
+                    color = DesignInk,
+                    lineHeight = 16.sp
+                )
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    "Print-ready, real card size",
+                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
+                    color = DesignMuted,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun CardDetailsFront(modifier: Modifier = Modifier) {
+    Box(modifier) {
+        Box(
+            Modifier.size(14.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.35f)),
+            contentAlignment = Alignment.Center
+        ) { /* chip */ }
+        Spacer(Modifier.width(6.dp).height(14.dp))
+        Box(
+            Modifier.width(36.dp).height(4.dp).clip(RoundedCornerShape(2.dp))
+                .background(Color.White.copy(alpha = 0.75f)),
+            contentAlignment = Alignment.Center
+        )
+        Spacer(Modifier.width(6.dp).height(4.dp))
+        Box(
+            Modifier.width(24.dp).height(4.dp).clip(RoundedCornerShape(2.dp))
+                .background(Color.White.copy(alpha = 0.45f)),
+            contentAlignment = Alignment.Center
+        )
+        Spacer(Modifier.height(6.dp))
+        Text(
+            "FRONT",
+            style = MaterialTheme.typography.caption.copy(fontSize = 7.sp, fontWeight = FontWeight.ExtraBold),
+            color = Color.White,
+            letterSpacing = 1.sp
+        )
+    }
+}
+
+@Composable
+private fun CardDetailsBack(modifier: Modifier = Modifier) {
+    Box(modifier) {
+        Box(
+            Modifier.size(18.dp).clip(RoundedCornerShape(3.dp)).background(Color.White.copy(alpha = 0.85f)),
+            contentAlignment = Alignment.Center
+        ) { /* chip */ }
+        Spacer(Modifier.width(6.dp).height(8.dp))
+        Box(
+            Modifier.width(34.dp).height(4.dp).clip(RoundedCornerShape(2.dp))
+                .background(Color.White.copy(alpha = 0.6f)),
+            contentAlignment = Alignment.Center
+        )
+        Spacer(Modifier.width(6.dp).height(8.dp))
+        Box(
+            Modifier.width(26.dp).height(4.dp).clip(RoundedCornerShape(2.dp))
+                .background(Color.White.copy(alpha = 0.4f)),
+            contentAlignment = Alignment.Center
+        )
+        Spacer(Modifier.height(6.dp))
+        Text(
+            "BACK",
+            style = MaterialTheme.typography.caption.copy(fontSize = 7.sp, fontWeight = FontWeight.ExtraBold),
+            color = Color.White,
+            letterSpacing = 1.sp
+        )
+    }
+}
+
+// ---------------------------------------------------------------------------------------------
+// Promo card: Digital Locker (lock badge + copy chip)
+// ---------------------------------------------------------------------------------------------
+
+@Composable
+private fun PromoCardLocker(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val reduce = rememberReduceMotion()
+    var pulse by remember { Animatable(0f) }
+
+    if (!reduce) {
+        LaunchedEffect(Unit) {
+            while (true) {
+                pulse.animateTo(1f, animationSpec = tween(1200, easing = FastOutSlowInEasing))
+                pulse.animateTo(0f, animationSpec = tween(1200, easing = FastOutSlowInEasing))
+                delay(200)
+            }
+        }
+    }
+
+    GlassCard(
+        modifier = modifier
+            .semantics { contentDescription = "Open Digital Locker" }
+            .role(Role.Button)
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(24.dp),
+        strong = true
+    ) {
+        Box(Modifier.fillMaxSize()) {
+            // Lock badge
+            Box(
+                Modifier
+                    .size(56.dp)
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(
+                        Brush.linearGradient(
+                            colors = listOf(DesignBrandLight, DesignBrand),
+                            start = Alignment.Companion.TopLeft,
+                            end = Alignment.Companion.BottomRight
+                        )
+                    )
+                    .shadow(8.dp, RoundedCornerShape(18.dp), clip = false, ambientColor = DesignBrand.copy(alpha = 0.30f), spotColor = DesignBrand.copy(alpha = 0.15f))
+                    .align(Alignment.TopCenter)
+                    .padding(top = 20.dp)
+                    .graphicsLayer {
+                        val ring = 12f.dp.toPx() * pulse.value
+                        scaleX = 1f + 0.05f * pulse.value
+                        scaleY = 1f + 0.05f * pulse.value
+                    },
                 contentAlignment = Alignment.Center
             ) {
-                BrandMark(Modifier.size(24.dp))
+                LockIcon(Modifier.size(28.dp), Color.White)
             }
-            Column(Modifier.weight(1f).padding(start = 11.dp)) {
-                Text("FlipScan", style = MaterialTheme.typography.titleLarge)
+
+            // Copy chip (illustration only — masked number, never real data)
+            Box(
+                Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(top = 92.dp)
+                    .background(Color.White.copy(alpha = 0.92f))
+                    .clip(RoundedCornerShape(50.dp))
+                    .padding(horizontal = 10.dp, vertical = 5.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically, spacing = 6.dp) {
+                    Text(
+                        "Aadhaar •••• •••• 1234",
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 10.5.sp,
+                            letterSpacing = 0.4.sp
+                        ),
+                        color = DesignChipText
+                    )
+                    CopyChipIcon(Modifier.size(12.dp), DesignChipText)
+                }
+            }
+
+            // Caption
+            Column(
+                Modifier.align(Alignment.BottomCenter).padding(bottom = 12.dp, horizontal = 12.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
                 Text(
-                    "Offline document scanner",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    "Locked on your phone",
+                    style = MaterialTheme.typography.titleMedium.copy(
+                        fontWeight = FontWeight.ExtraBold,
+                        fontSize = 14.sp,
+                        letterSpacing = 0.2.sp
+                    ),
+                    color = DesignInk,
+                    lineHeight = 16.sp
+                )
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    "Copy ID numbers in one tap",
+                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
+                    color = DesignMuted,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
                 )
             }
-            OfflineChip()
         }
-        Text(
-            "Both sides.\nOne page.",
-            style = MaterialTheme.typography.displaySmall,
-            modifier = Modifier.padding(top = 20.dp)
-        )
-        Text(
-            "Scan a card once and print both sides together, or capture a full document.",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(top = 6.dp, bottom = 8.dp)
-        )
     }
 }
 
-@Composable
-private fun OfflineChip() {
-    Row(
-        Modifier.clip(RoundedCornerShape(50))
-            .background(MaterialTheme.colorScheme.secondaryContainer)
-            .padding(horizontal = 10.dp, vertical = 6.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Box(Modifier.size(6.dp).clip(CircleShape).background(Success))
-        Spacer(Modifier.width(6.dp))
-        Text(
-            "Offline",
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSecondaryContainer
-        )
-    }
-}
+// ---------------------------------------------------------------------------------------------
+// Small decorative icons
+// ---------------------------------------------------------------------------------------------
 
 @Composable
-private fun ActionCard(
-    title: String,
-    subtitle: String,
-    filled: Boolean,
-    icon: @Composable () -> Unit,
-    onClick: () -> Unit
-) {
-    val shape = MaterialTheme.shapes.large
-    val fg = if (filled) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
-    val sub = if (filled) fg.copy(alpha = 0.9f) else MaterialTheme.colorScheme.onSurfaceVariant
-    val heroStart = MaterialTheme.colorScheme.primary
-    val heroEnd = MaterialTheme.colorScheme.tertiary
-    val cardModifier = if (filled) {
-        // Hero action: brand gradient, soft coloured shadow, sheen and a light edge.
-        val glow = heroStart.copy(alpha = 0.34f)
-        Modifier.fillMaxWidth()
-            .shadow(12.dp, shape, clip = false, ambientColor = glow, spotColor = glow)
-            .clip(shape)
-            .drawBehind {
-                val w = size.width.coerceAtLeast(1f)
-                val h = size.height.coerceAtLeast(1f)
-                drawRect(
-                    Brush.linearGradient(
-                        listOf(heroStart, heroEnd),
-                        start = Offset(0f, 0f),
-                        end = Offset(w, h)
-                    )
-                )
-                drawRect(
-                    Brush.verticalGradient(
-                        0f to Color.White.copy(alpha = 0.20f),
-                        0.65f to Color.Transparent,
-                        endY = h
-                    )
-                )
-            }
-            .border(
-                1.dp,
-                Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.32f), Color.White.copy(alpha = 0.07f))),
-                shape
-            )
-            .pressable(onClick)
-    } else {
-        Modifier.fillMaxWidth()
-            .glass(shape, accent = MaterialTheme.colorScheme.secondary, elevation = 2.dp)
-            .pressable(onClick)
-    }
-    Row(
-        cardModifier.padding(horizontal = 16.dp, vertical = 15.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
+private fun CameraIcon(modifier: Modifier = Modifier, color: Color) {
+    Box(modifier) {
+        // Simplified camera glyph
         Box(
-            Modifier.size(48.dp).clip(RoundedCornerShape(15.dp))
-                .background(if (filled) Color.White.copy(alpha = 0.16f) else MaterialTheme.colorScheme.secondaryContainer),
-            contentAlignment = Alignment.Center
-        ) { icon() }
-        Column(Modifier.weight(1f).padding(start = 14.dp)) {
-            Text(title, style = MaterialTheme.typography.titleMedium, color = fg)
-            Text(subtitle, style = MaterialTheme.typography.bodySmall, color = sub, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        }
-        Icon(
-            Icons.AutoMirrored.Filled.KeyboardArrowRight,
-            contentDescription = null,
-            tint = if (filled) fg.copy(alpha = 0.7f) else MaterialTheme.colorScheme.onSurfaceVariant
-        )
-    }
-}
-
-/** The locker is visually related to the scan cards, but tinted and labelled so it reads as a separate, protected place. */
-@Composable
-private fun LockerEntryCard(onClick: () -> Unit) {
-    Row(
-        Modifier.fillMaxWidth()
-            .glass(MaterialTheme.shapes.large, accent = MaterialTheme.colorScheme.tertiary, elevation = 2.dp)
-            .pressable(onClick)
-            .padding(horizontal = 16.dp, vertical = 15.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Box(
-            Modifier.size(48.dp).clip(RoundedCornerShape(15.dp))
-                .background(MaterialTheme.colorScheme.tertiaryContainer),
+            Modifier.size(18.dp).clip(RoundedCornerShape(4.dp)).background(color.copy(alpha = 0.9f)),
             contentAlignment = Alignment.Center
         ) {
-            LockIcon(Modifier.size(24.dp), MaterialTheme.colorScheme.onTertiaryContainer)
+            Box(Modifier.size(6.dp).clip(CircleShape).background(Color.White))
         }
-        Column(Modifier.weight(1f).padding(start = 14.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Digital Locker", style = MaterialTheme.typography.titleMedium)
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    "Locked",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onTertiaryContainer,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(50))
-                        .background(MaterialTheme.colorScheme.tertiaryContainer)
-                        .padding(horizontal = 8.dp, vertical = 3.dp)
-                )
-            }
-            Text(
-                "Aadhaar, PAN, passport — encrypted on this phone",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
-        Icon(
-            Icons.AutoMirrored.Filled.KeyboardArrowRight,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant
+        Spacer(Modifier.height(2.dp))
+        Box(
+            Modifier.width(14.dp).height(2.dp).clip(RoundedCornerShape(1.dp)).background(color.copy(alpha = 0.8f)),
+            contentAlignment = Alignment.Center
         )
     }
 }
+
+@Composable
+private fun CopyChipIcon(modifier: Modifier = Modifier, color: Color) {
+    Box(modifier) {
+        Box(
+            Modifier.size(10.dp).clip(RoundedCornerShape(2.dp)).background(color.copy(alpha = 0.2f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Box(Modifier.size(4.dp).clip(RoundedCornerShape(1.dp)).background(color))
+        }
+        Spacer(Modifier.height(2.dp))
+        Box(
+            Modifier.width(8.dp).height(2.dp).clip(RoundedCornerShape(1.dp)).background(color.copy(alpha = 0.8f)),
+            contentAlignment = Alignment.Center
+        )
+    }
+}
+
+@Composable
+private fun FlipIcon(modifier: Modifier = Modifier, color: Color) {
+    Box(modifier) {
+        // Simple flip/document icon
+        Box(
+            Modifier.size(14.dp).clip(RoundedCornerShape(2.dp)).background(color.copy(alpha = 0.2f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Box(Modifier.size(6.dp).clip(RoundedCornerShape(1.dp)).background(color))
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------------------------
+// FlipScreen placeholder: home screen needs BackHandler for consistency
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * The home screen is the root; BackHandler is not needed here since there's nothing to pop to.
+ * Kept for structural consistency with other screens.
+ */
