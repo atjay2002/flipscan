@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FlipScan Home</title>
+</head>
+<body>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;display=swap">
+<style>
+body{margin:0}
+button{font-family:inherit;cursor:pointer;transition:transform .15s ease}
+button:active{transform:scale(.97)}
+a{color:#4B2FE0}
+@keyframes rise{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
+@keyframes dropIn{from{opacity:0;transform:translateY(-24px) rotate(-8deg)}to{opacity:1;transform:translateY(0) rotate(-3deg)}}
+@keyframes flipIn{from{opacity:0;transform:perspective(500px) rotateX(-95deg)}to{opacity:1;transform:perspective(500px) rotateX(0) rotate(3deg)}}
+@keyframes floatA{0%,100%{transform:translateY(0) rotate(-3deg)}50%{transform:translateY(-5px) rotate(-3deg)}}
+@keyframes floatB{0%,100%{transform:translateY(0) rotate(3deg)}50%{transform:translateY(5px) rotate(3deg)}}
+@keyframes drift{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(22px,-18px) scale(1.12)}}
+@keyframes shine{0%{transform:translateX(-120px)}55%,100%{transform:translateX(460px)}}
+@keyframes ping{0%{box-shadow:0 0 0 0 rgba(10,90,63,.4)}100%{box-shadow:0 0 0 10px rgba(10,90,63,0)}}
+@keyframes flipicon{0%,30%{transform:perspective(200px) rotateY(0)}50%,80%{transform:perspective(200px) rotateY(180deg)}100%{transform:perspective(200px) rotateY(360deg)}}
+.r1{animation:rise .6s .05s both}
+.r2{animation:rise .6s .15s both}
+.r3{animation:rise .6s .45s both}
+.r4{animation:rise .6s .6s both}
+.r5{animation:rise .6s .75s both}
+.front{animation:dropIn .8s .25s cubic-bezier(.2,.9,.3,1.2) both,floatA 4.5s 1.2s ease-in-out infinite}
+.back{transform-origin:top center;animation:flipIn .9s .7s cubic-bezier(.2,.9,.3,1.1) both,floatB 4.5s 1.8s ease-in-out infinite}
+.blob{animation:drift 9s ease-in-out infinite}
+.shine{animation:shine 3.6s 1.5s ease-in-out infinite}
+.live{animation:ping 2s ease-out infinite}
+.flipicon{animation:flipicon 4s ease-in-out infinite}
+@keyframes pingP{0%{box-shadow:0 0 0 0 rgba(75,47,224,.4)}100%{box-shadow:0 0 0 12px rgba(75,47,224,0)}}
+.lockbadge{animation:pingP 2.4s ease-out infinite}
+@keyframes copyflash{0%,68%,100%{background:rgba(255,255,255,.92)}76%,92%{background:#FFB020}}
+.copychip{animation:copyflash 4s 1.5s ease-in-out infinite}
+.glass{background:rgba(255,255,255,.55);-webkit-backdrop-filter:blur(18px) saturate(170%);backdrop-filter:blur(18px) saturate(170%);border:1px solid rgba(255,255,255,.75);box-shadow:0 8px 28px rgba(75,47,224,.14),inset 0 1px 0 rgba(255,255,255,.9)}
+@media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important}}
+</style>
+<div style="width: 390px; height: 844px; box-sizing: border-box; padding: 28px 20px 20px; background: #F4F1FF; color: #17142B; font-family: Inter, system-ui, sans-serif; display: flex; flex-direction: column; gap: 14px; position: relative; isolation: isolate; overflow: hidden">
+
+<div class="blob" aria-hidden="true" style="position: absolute; z-index: -1; left: -70px; top: 130px; width: 250px; height: 250px; border-radius: 50%; background: #7C5CFF; opacity: 0.5; filter: blur(46px)"></div>
+<div class="blob" aria-hidden="true" style="position: absolute; z-index: -1; right: -60px; top: 470px; width: 210px; height: 210px; border-radius: 50%; background: #FFB020; opacity: 0.5; filter: blur(44px); animation-delay: -3s"></div>
+<div class="blob" aria-hidden="true" style="position: absolute; z-index: -1; left: 30px; top: 580px; width: 220px; height: 220px; border-radius: 50%; background: #3DDCB5; opacity: 0.4; filter: blur(46px); animation-delay: -6s"></div>
+
+<div class="r1" style="display: flex; align-items: center; justify-content: space-between">
+<div style="display: flex; align-items: center; gap: 10px">
+<div style="width: 40px; height: 40px; border-radius: 12px; background: #4B2FE0; position: relative; box-shadow: 0 6px 16px rgba(75,47,224,0.35)">
+<div style="position: absolute; left: 8px; top: 9px; width: 18px; height: 13px; border-radius: 3px; background: #FFB020"></div>
+<div style="position: absolute; left: 14px; top: 17px; width: 18px; height: 13px; border-radius: 3px; background: #FFFFFF"></div>
+</div>
+<div style="font-size: 20px; font-weight: 800; letter-spacing: -0.3px">FlipScan</div>
+</div>
+<div class="glass live" style="display: flex; align-items: center; gap: 6px; padding: 7px 12px; border-radius: 999px; color: #0A5A3F; font-size: 13px; font-weight: 700">
+<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#0A5A3F" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6l8-3z"></path><path d="M8.5 12l2.5 2.5 4.5-5"></path></svg>
+Works offline
+</div>
+</div>
+
+<div class="r2" style="font-size: 34px; line-height: 1.05; font-weight: 800; letter-spacing: -1px; margin-top: 4px">Both sides.<br><span style="color: #4B2FE0">One page.</span></div>
+
+<div class="r2" style="display: flex; gap: 12px; flex: none">
+
+<div class="glass" style="flex: 1; height: 188px; border-radius: 24px; position: relative; overflow: hidden">
+<div style="position: absolute; left: 50%; top: 12px; margin-left: -50px; width: 100px; height: 116px; border-radius: 6px; background: #FFFFFF; box-shadow: 0 10px 22px rgba(75,47,224,0.26)">
+<div class="front" style="position: absolute; left: 11px; top: 10px; width: 78px; height: 46px; border-radius: 6px; background: #4B2FE0; color: #FFFFFF; box-shadow: 0 5px 10px rgba(75,47,224,0.35)">
+<div style="position: absolute; left: 6px; top: 6px; width: 14px; height: 14px; border-radius: 7px; background: rgba(255,255,255,0.35)"></div>
+<div style="position: absolute; left: 26px; top: 8px; width: 36px; height: 4px; border-radius: 2px; background: rgba(255,255,255,0.75)"></div>
+<div style="position: absolute; left: 26px; top: 16px; width: 24px; height: 4px; border-radius: 2px; background: rgba(255,255,255,0.45)"></div>
+<div style="position: absolute; left: 6px; bottom: 4px; font-size: 7px; font-weight: 800; letter-spacing: 1px">FRONT</div>
+</div>
+<div class="back" style="position: absolute; left: 11px; top: 62px; width: 78px; height: 46px; border-radius: 6px; background: #17142B; color: #FFFFFF; box-shadow: 0 5px 10px rgba(23,20,43,0.35)">
+<div style="position: absolute; right: 6px; top: 6px; width: 18px; height: 18px; border-radius: 3px; background: rgba(255,255,255,0.85)"></div>
+<div style="position: absolute; left: 6px; top: 8px; width: 34px; height: 4px; border-radius: 2px; background: rgba(255,255,255,0.6)"></div>
+<div style="position: absolute; left: 6px; top: 16px; width: 26px; height: 4px; border-radius: 2px; background: rgba(255,255,255,0.4)"></div>
+<div style="position: absolute; left: 6px; bottom: 4px; font-size: 7px; font-weight: 800; letter-spacing: 1px">BACK</div>
+</div>
+</div>
+<div style="position: absolute; right: 8px; top: 60px; padding: 5px 9px; border-radius: 999px; background: #FFB020; color: #17142B; font-size: 10px; font-weight: 800; transform: rotate(6deg)">1 page</div>
+<div style="position: absolute; left: 12px; right: 12px; bottom: 12px">
+<div style="font-size: 14px; font-weight: 800; line-height: 1.15">Both sides, one page</div>
+<div style="font-size: 11px; color: #4A4660; margin-top: 2px">Print-ready, real card size</div>
+</div>
+</div>
+
+<div class="glass" style="flex: 1; height: 188px; border-radius: 24px; position: relative; overflow: hidden">
+<div class="lockbadge" style="position: absolute; left: 50%; top: 20px; margin-left: -28px; width: 56px; height: 56px; border-radius: 18px; background: linear-gradient(135deg, #6A4CFF, #4B2FE0); display: flex; align-items: center; justify-content: center">
+<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2.5"></rect><path d="M8 11V8a4 4 0 018 0v3"></path></svg>
+</div>
+<div class="copychip" style="position: absolute; left: 50%; top: 92px; transform: translateX(-50%); white-space: nowrap; display: flex; align-items: center; gap: 6px; padding: 5px 10px; border-radius: 999px; font-size: 10.5px; font-weight: 700; color: #2E2194; box-shadow: 0 4px 10px rgba(75,47,224,0.15)">Aadhaar &bull;&bull;&bull;&bull; 1234
+<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#2E2194" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"></rect><path d="M5 15V6a2 2 0 012-2h9"></path></svg>
+</div>
+<div style="position: absolute; left: 12px; right: 12px; bottom: 12px">
+<div style="font-size: 14px; font-weight: 800; line-height: 1.15">Locked on your phone</div>
+<div style="font-size: 11px; color: #4A4660; margin-top: 2px">Copy ID numbers in one tap</div>
+</div>
+</div>
+
+</div>
+
+<button class="r3" type="button" style="width: 100%; box-sizing: border-box; height: 76px; border: 0; border-radius: 22px; background: linear-gradient(135deg, #6A4CFF, #4B2FE0); color: #FFFFFF; display: flex; align-items: center; gap: 14px; padding: 0 18px; text-align: left; position: relative; overflow: hidden; flex: none; box-shadow: 0 12px 26px rgba(75,47,224,0.4)">
+<span class="shine" aria-hidden="true" style="position: absolute; top: 0; left: 0; width: 70px; height: 100%; background: linear-gradient(100deg, rgba(255,255,255,0), rgba(255,255,255,0.35), rgba(255,255,255,0))"></span>
+<span style="width: 44px; height: 44px; border-radius: 14px; background: rgba(255,255,255,0.2); display: flex; align-items: center; justify-content: center">
+<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="6" width="18" height="12" rx="2.5"></rect><circle cx="8.5" cy="12" r="1.8"></circle><path d="M13 10.5h5M13 13.5h3.5"></path></svg>
+</span>
+<span style="flex: 1; display: flex; flex-direction: column; gap: 2px">
+<span style="font-size: 18px; font-weight: 800">Scan ID card</span>
+<span style="font-size: 13px; font-weight: 500; color: #E4DEFF">Aadhaar, PAN, DL, voter ID</span>
+</span>
+<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"></path></svg>
+</button>
+
+<div class="r4" style="display: flex; gap: 12px; flex: none">
+<button class="glass" type="button" style="flex: 1; box-sizing: border-box; height: 92px; border-radius: 20px; color: #17142B; padding: 14px; text-align: left; display: flex; flex-direction: column; justify-content: space-between">
+<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#4B2FE0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h8l4 4v14H6z"></path><path d="M14 3v4h4M9 12h6M9 16h6"></path></svg>
+<span style="display: flex; flex-direction: column; gap: 1px">
+<span style="font-size: 16px; font-weight: 700">Document</span>
+<span style="font-size: 12px; color: #4A4660">Passbooks, notes</span>
+</span>
+</button>
+<button class="glass" type="button" style="flex: 1; box-sizing: border-box; height: 92px; border-radius: 20px; color: #17142B; padding: 14px; text-align: left; display: flex; flex-direction: column; justify-content: space-between">
+<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#4B2FE0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2.5"></rect><path d="M8 11V8a4 4 0 018 0v3"></path></svg>
+<span style="display: flex; flex-direction: column; gap: 1px">
+<span style="font-size: 16px; font-weight: 700">Digital Locker</span>
+<span style="font-size: 12px; color: #4A4660">Open your vault</span>
+</span>
+</button>
+</div>
+
+<div class="r5" style="display: flex; align-items: center; justify-content: space-between; margin-top: 4px; flex: none">
+<div style="font-size: 17px; font-weight: 800">Recent scans</div>
+<a href="#" style="font-size: 14px; font-weight: 700; text-decoration: none">New folder</a>
+</div>
+
+<div class="glass r5" style="flex: 1; border-radius: 20px; display: flex; align-items: center; justify-content: center; gap: 14px; padding: 0 18px">
+<svg class="flipicon" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#4B2FE0" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h12a3 3 0 013 3v1"></path><path d="M7 5L4 8l3 3"></path><path d="M20 16H8a3 3 0 01-3-3v-1"></path><path d="M17 19l3-3-3-3"></path></svg>
+<div style="display: flex; flex-direction: column; gap: 2px">
+<div style="font-size: 16px; font-weight: 800">Scan your first ID</div>
+<div style="font-size: 13px; color: #4A4660; line-height: 1.35">Saved scans stay on this phone.</div>
+</div>
+</div>
+
+<div class="r5" style="font-size: 12px; font-weight: 600; color: #4A4660; text-align: center; flex: none">Private by default. Shared only by you.</div>
+
+</div>
+</body>
+</html>
