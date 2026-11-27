@@ -26,6 +26,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -104,6 +105,7 @@ private fun App() {
     val lockerPages = remember { mutableStateListOf<File>() }
     var saving by remember { mutableStateOf(false) }
     var screen by remember { mutableStateOf<Screen>(Screen.Home) }
+    var reload by remember { mutableIntStateOf(0) }
     val fadeInMs = motionMs(220)
     val fadeOutMs = motionMs(150)
     val slideMs = motionMs(280)
@@ -207,7 +209,9 @@ private fun App() {
                             lockerUnlocked = false
                             screen = Screen.LockerGate
                         }
-                    }
+                    },
+                    reloadKey = reload,
+                    onChanged = { reload++ }
                 )
                 is Screen.Folder -> FolderScreen(
                     folderId = current.folderId,
@@ -252,7 +256,8 @@ private fun App() {
                     current.scanId,
                     onBack = {
                         screen = current.fromFolder?.let { Screen.Folder(it) } ?: Screen.Home
-                    }
+                    },
+                    onScanChanged = { reload++ }
                 )
 
                 Screen.LockerGate -> LockerGateScreen(

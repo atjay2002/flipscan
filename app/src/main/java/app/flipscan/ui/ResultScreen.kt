@@ -101,7 +101,7 @@ import kotlinx.coroutines.withContext
 private data class ExportFeedback(val ok: Boolean, val title: String, val body: String)
 
 @Composable
-fun ResultScreen(scanId: String, onBack: () -> Unit) {
+fun ResultScreen(scanId: String, onBack: () -> Unit, onScanChanged: (Scan) -> Unit = {}) {
     val ctx = LocalContext.current
     var scan by remember(scanId) { mutableStateOf<Scan?>(null) }
     BackHandler(onBack = onBack)
@@ -113,7 +113,10 @@ fun ResultScreen(scanId: String, onBack: () -> Unit) {
         }
     } else {
         // The scan is hoisted here so a rename survives recomposition of the whole screen.
-        ResultContent(s, onBack, onScanChanged = { scan = it })
+        ResultContent(s, onBack, onScanChanged = { updated ->
+            scan = updated
+            onScanChanged(updated)
+        })
     }
 }
 

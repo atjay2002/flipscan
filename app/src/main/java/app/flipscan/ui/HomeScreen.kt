@@ -67,13 +67,15 @@ fun HomeScreen(
     onRegular: () -> Unit,
     onEdit: (Scan) -> Unit,
     onOpenFolder: (Folder) -> Unit,
-    onLocker: () -> Unit
+    onLocker: () -> Unit,
+    reloadKey: Int,
+    onChanged: () -> Unit
 ) {
     // The redesigned dashboard is a fixed light surface. Pinning the light colour scheme here keeps
     // every Material-based child (scan rows, sheets, dialogs) light instead of mixing a dark card
     // into the light page when the system theme is dark. Dark-mode polish is deferred.
     FlipScanTheme(darkTheme = false) {
-        HomeScreenContent(onDoubleSide, onRegular, onEdit, onOpenFolder, onLocker)
+        HomeScreenContent(onDoubleSide, onRegular, onEdit, onOpenFolder, onLocker, reloadKey, onChanged)
     }
 }
 
@@ -83,22 +85,22 @@ private fun HomeScreenContent(
     onRegular: () -> Unit,
     onEdit: (Scan) -> Unit,
     onOpenFolder: (Folder) -> Unit,
-    onLocker: () -> Unit
+    onLocker: () -> Unit,
+    reloadKey: Int,
+    onChanged: () -> Unit
 ) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
     var scans by remember { mutableStateOf<List<Scan>>(emptyList()) }
     var folders by remember { mutableStateOf<List<Folder>>(emptyList()) }
     var loaded by remember { mutableStateOf(false) }
-    var reload by remember { mutableIntStateOf(0) }
-
     var actionsFor by remember { mutableStateOf<Scan?>(null) }
     var folderMenu by remember { mutableStateOf<Folder?>(null) }
     var creatingFolder by remember { mutableStateOf(false) }
     var renamingFolder by remember { mutableStateOf<Folder?>(null) }
     var deletingFolder by remember { mutableStateOf<Folder?>(null) }
 
-    LaunchedEffect(reload) {
+    LaunchedEffect(reloadKey) {
         val data = withContext(Dispatchers.IO) { ScanStore.list(ctx) to FolderStore.list(ctx) }
         scans = data.first
         folders = data.second
@@ -245,7 +247,7 @@ private fun HomeScreenContent(
             folders = folders,
             onDismiss = { actionsFor = null },
             onEdit = { s -> actionsFor = null; onEdit(s) },
-            onChanged = { reload++ }
+            onChanged = { onChanged() }
         )
     }
 
@@ -260,7 +262,7 @@ private fun HomeScreenContent(
                 creatingFolder = false
                 scope.launch {
                     val folder = withContext(Dispatchers.IO) { FolderStore.create(ctx, name) }
-                    reload++
+                    onChanged()
                     if (folder != null) Toast.makeText(ctx, "Folder \"${folder.name}\" created", Toast.LENGTH_SHORT).show()
                 }
             }
@@ -277,7 +279,7 @@ private fun HomeScreenContent(
                 renamingFolder = null
                 scope.launch {
                     withContext(Dispatchers.IO) { FolderStore.rename(ctx, folder.id, name) }
-                    reload++
+                    onChanged()
                 }
             }
         )
@@ -295,7 +297,7 @@ private fun HomeScreenContent(
                         ScanStore.clearFolder(ctx, folder.id)
                         FolderStore.delete(ctx, folder.id)
                     }
-                    reload++
+                    onChanged()
                 }
             }
         )
