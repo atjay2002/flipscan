@@ -108,9 +108,9 @@ None blocking. At 360dp width the BACK card illustration is partly cropped by th
 ## Delivery
 
 - **Debug APK:** `delivery/FlipScan-redesign-debug.apk` (SHA-256: `D89C6D61A75054B634021EFF11025FD7E7BCB31A1737BF7AFDF9DA9429218144`)
-- **Release APK:** `delivery/FlipScan-redesign-release.apk` (signed, CN=FlipScan, SHA-256: `5E8D2D1359EB4789ED97D5E7305252A5F8F2DB14C4145264E11B959599DAF14A`)
+- **Release APK:** `delivery/FlipScan-0.10.0.apk` (signed, CN=FlipScan, versionCode 10, versionName 0.10.0, SHA-256: `D17344C0DECC41D90C75EBCE1C813DF67B7C06FC938016EDF2251D364AA51D01`)
 - **Report:** `docs/REDESIGN_REPORT.md`
 - **Commit info:** `delivery/commit-info.txt`
-- **Git branch:** `redesign-ui` (committed `e35c320`, pushed to origin)
+- **Git branch:** `redesign-ui` (committed `e8eb6b1`, pushed to origin)
 - **Drive folder:** Not configured (placeholder path) — files are in `./delivery/` as fallback
 - **GitHub draft release:** Not created (`gh` CLI not available/authenticated)
