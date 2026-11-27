@@ -68,14 +68,13 @@ fun HomeScreen(
     onEdit: (Scan) -> Unit,
     onOpenFolder: (Folder) -> Unit,
     onLocker: () -> Unit,
-    reloadKey: Int,
     onChanged: () -> Unit
 ) {
     // The redesigned dashboard is a fixed light surface. Pinning the light colour scheme here keeps
     // every Material-based child (scan rows, sheets, dialogs) light instead of mixing a dark card
     // into the light page when the system theme is dark. Dark-mode polish is deferred.
     FlipScanTheme(darkTheme = false) {
-        HomeScreenContent(onDoubleSide, onRegular, onEdit, onOpenFolder, onLocker, reloadKey, onChanged)
+        HomeScreenContent(onDoubleSide, onRegular, onEdit, onOpenFolder, onLocker, onChanged)
     }
 }
 
@@ -86,7 +85,6 @@ private fun HomeScreenContent(
     onEdit: (Scan) -> Unit,
     onOpenFolder: (Folder) -> Unit,
     onLocker: () -> Unit,
-    reloadKey: Int,
     onChanged: () -> Unit
 ) {
     val ctx = LocalContext.current
@@ -100,7 +98,9 @@ private fun HomeScreenContent(
     var renamingFolder by remember { mutableStateOf<Folder?>(null) }
     var deletingFolder by remember { mutableStateOf<Folder?>(null) }
 
-    LaunchedEffect(reloadKey) {
+    // (Re)load scans whenever this composition starts — e.g. when returning from Result/Folder
+    // after a rename. key(reload) in the caller forces a fresh composition on every return.
+    LaunchedEffect(Unit) {
         val data = withContext(Dispatchers.IO) { ScanStore.list(ctx) to FolderStore.list(ctx) }
         scans = data.first
         folders = data.second

@@ -28,6 +28,7 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.key
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -197,22 +198,25 @@ private fun App() {
             label = "screens"
         ) { current ->
             when (current) {
-                Screen.Home -> HomeScreen(
-                    onDoubleSide = { Work.clear(ctx); screen = Screen.DoubleSide },
-                    onRegular = { Work.clear(ctx); regularPages.clear(); screen = Screen.Regular },
-                    onEdit = { screen = Screen.Result(it.id) },
-                    onOpenFolder = { screen = Screen.Folder(it.id) },
-                    onLocker = {
-                        if (lockerActive()) {
-                            screen = Screen.LockerHome
-                        } else {
-                            lockerUnlocked = false
-                            screen = Screen.LockerGate
-                        }
-                    },
-                    reloadKey = reload,
-                    onChanged = { reload++ }
-                )
+                Screen.Home -> {
+                    key(reload) {
+                        HomeScreen(
+                            onDoubleSide = { Work.clear(ctx); screen = Screen.DoubleSide },
+                            onRegular = { Work.clear(ctx); regularPages.clear(); screen = Screen.Regular },
+                            onEdit = { screen = Screen.Result(it.id) },
+                            onOpenFolder = { screen = Screen.Folder(it.id) },
+                            onLocker = {
+                                if (lockerActive()) {
+                                    screen = Screen.LockerHome
+                                } else {
+                                    lockerUnlocked = false
+                                    screen = Screen.LockerGate
+                                }
+                            },
+                            onChanged = { reload++ }
+                        )
+                    }
+                }
                 is Screen.Folder -> FolderScreen(
                     folderId = current.folderId,
                     onBack = { reload++; screen = Screen.Home },
