@@ -215,11 +215,11 @@ private fun App() {
                 )
                 is Screen.Folder -> FolderScreen(
                     folderId = current.folderId,
-                    onBack = { screen = Screen.Home },
+                    onBack = { reload++; screen = Screen.Home },
                     onEdit = { screen = Screen.Result(it.id, fromFolder = current.folderId) }
                 )
                 Screen.DoubleSide -> DoubleSideScreen(
-                    onBack = { screen = Screen.Home },
+                    onBack = { reload++; screen = Screen.Home },
                     onDone = { files ->
                         if (!saving && files.size == 2) {
                             saving = true
@@ -234,7 +234,7 @@ private fun App() {
                 Screen.Regular -> RegularScreen(
                     regularPages,
                     onDone = { screen = Screen.Pages },
-                    onBack = { screen = Screen.Home }
+                    onBack = { reload++; screen = Screen.Home }
                 )
                 Screen.Pages -> PagesScreen(
                     regularPages,
@@ -255,6 +255,7 @@ private fun App() {
                 is Screen.Result -> ResultScreen(
                     current.scanId,
                     onBack = {
+                        reload++
                         screen = current.fromFolder?.let { Screen.Folder(it) } ?: Screen.Home
                     },
                     onScanChanged = { reload++ }
